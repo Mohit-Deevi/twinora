@@ -1,0 +1,104 @@
+# Jarvis additions for %LOCALAPPDATA%\hermes\config.yaml
+#
+# Applied by setup\02-install-into-hermes.ps1 (deep-merged; a timestamped backup of
+# config.yaml is written first). Keys that already exist in config.yaml are
+# overwritten only where listed here; everything else is left untouched.
+
+# ── Dangerous-command approvals (Hermes built-in) ───────────────────────────
+# smart  = auxiliary model auto-approves trivial commands, prompts on real risk
+# cron_mode/single_query_mode deny = unattended runs can never self-approve
+approvals:
+  mode: smart
+  timeout: 300
+  cron_mode: deny
+  single_query_mode: deny
+  # Hard deny list — evaluated BEFORE --yolo / approvals.mode: off. Belt for the
+  # policy guard's braces. fnmatch globs, case-insensitive, whole command text.
+  deny:
+    - "gh repo delete*"
+    - "gh release delete*"
+    - "git push --force*"
+    - "git push -f *"
+    - "git push * --force*"
+    - "*rm -rf /*"
+    - "*rm -rf ~*"
+    - "*rm -rf C:*"
+    - "*format C:*"
+    - "hermes uninstall*"
+    - "*curl*| *sh*"
+    - "*curl*| *bash*"
+    - "*irm*| *iex*"
+
+# ── Jarvis policy guard (machine-level permission levels) ───────────────────
+# Runs before every terminal / write_file / patch call in CLI and gateway.
+# fail_closed: a crashed or missing guard blocks the call instead of allowing it.
+hooks_auto_accept: true   # persist consent for the guard (gateway restarts are non-interactive)
+hooks:
+  pre_tool_call:
+    - matcher: "terminal|write_file|patch"
+      command: "C:/Users/Growstack/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe C:/Users/Growstack/AppData/Local/hermes/agent-hooks/policy-guard.py"
+      timeout: 10
+      fail_closed: true
+
+# ── Delegation (subagents) ──────────────────────────────────────────────────
+delegation:
+  max_iterations: 250
+  max_concurrent_children: 3        # raise later; each child multiplies API cost
+  max_spawn_depth: 1
+  subagent_auto_approve: false      # children never self-approve dangerous commands
+
+# ── Loop guardrails: hard-stop runaway autonomous loops ─────────────────────
+tool_loop_guardrails:
+  warnings_enabled: true
+  hard_stop_enabled: true
+  warn_after:
+    exact_failure: 2
+    same_tool_failure: 3
+    idempotent_no_progress: 2
+  hard_stop_after:
+    exact_failure: 5
+    same_tool_failure: 8
+    idempotent_no_progress: 5
+
+# ── Memory: let Jarvis build a model of you and your projects ───────────────
+memory:
+  memory_enabled: true
+  user_profile_enabled: true
+  memory_char_limit: 3000
+  user_char_limit: 2000
+  nudge_interval: 10
+
+# ── Terminal defaults ───────────────────────────────────────────────────────
+terminal:
+  backend: local
+  cwd: C:/Users/Growstack/jarvis-work
+  timeout: 180
+  # When you want untrusted work sandboxed, switch to docker (Docker Desktop is
+  # already running on this machine) — see runbook Phase 6:
+  # backend: docker
+  # docker_mount_cwd_to_workspace: true
+
+# ── WhatsApp bridge on its own port ─────────────────────────────────────────
+# The bridge kills whatever is LISTENING on its port when it (re)starts. Your
+# Next.js dev server uses 3000, so the bridge lives on 3777. (Applied 2026-08-20.)
+gateway:
+  platforms:
+    whatsapp:
+      extra:
+        bridge_port: 3777
+
+# ── "Hey Jarvis" wake word (on-device, openWakeWord built-in model) ──────────
+# Pinned to the desktop app (surface: gui) so CLI sessions don't grab the mic.
+# Toggle at runtime with /wake on|off. Needs the [voice] extras (installed).
+wake_word:
+  enabled: true
+  surface: gui
+  provider: openwakeword
+  phrase: "hey jarvis"
+  openwakeword:
+    model: hey_jarvis
+
+# ── Fallback model: uncomment after you pick a secondary provider ───────────
+# fallback_model:
+#   provider: openrouter
+#   model: anthropic/claude-sonnet-4-6

@@ -1,0 +1,7 @@
+name: growstack-router
+version: 1.0.0
+description: "Growstack LLM router image backend (Azure GPT Image 2, Seedream, FLUX, Ideogram)."
+author: Growstack (tech@growstack.ai)
+kind: backend
+requires_env:
+  - GROWSTACK_ROUTER_KEY

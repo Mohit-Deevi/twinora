@@ -1,0 +1,516 @@
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>J.A.R.V.I.S.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Exo+2:ital,wght@0,300;0,400;0,600;1,300&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  :root{
+    --void:#04080F; --void-2:#071220; --glass:rgba(6,20,34,.58); --glass-2:rgba(10,28,46,.72);
+    --cyan:#39D6FF; --cyan-2:#0FB5E6; --cyan-dim:#0E5C78; --cyan-glow:rgba(57,214,255,.55);
+    --amber:#FFB545; --amber-glow:rgba(255,181,69,.5); --red:#FF4D5E; --green:#3DF0A5;
+    --ink:#D8F3FF; --ink-2:#9CC6DA; --muted:#5E8AA1; --line:rgba(57,214,255,.22); --line-2:rgba(57,214,255,.45);
+    --hud:"Orbitron","Exo 2",system-ui,sans-serif; --body:"Exo 2","Segoe UI",system-ui,sans-serif; --mono:"JetBrains Mono",Consolas,monospace;
+    --r:10px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--void);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;overflow:hidden;-webkit-font-smoothing:antialiased}
+  button,input,textarea{font:inherit;color:inherit}
+  button{cursor:pointer;background:none;border:0;padding:0}
+  button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+  a{color:var(--cyan)}
+  ::selection{background:rgba(57,214,255,.35)}
+  ::-webkit-scrollbar{width:8px;height:8px} ::-webkit-scrollbar-thumb{background:rgba(57,214,255,.25);border-radius:8px} ::-webkit-scrollbar-track{background:transparent}
+
+  /* ---------- atmosphere ---------- */
+  #bg{position:fixed;inset:0;width:100%;height:100%;z-index:0}
+  .vignette{position:fixed;inset:0;z-index:1;pointer-events:none;background:
+    radial-gradient(ellipse at 50% 45%,rgba(57,214,255,.10),transparent 45%),
+    radial-gradient(ellipse at 50% 50%,transparent 55%,rgba(2,5,10,.85) 100%)}
+  .scan{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.18;background:repeating-linear-gradient(0deg,transparent 0 2px,rgba(0,0,0,.35) 2px 3px)}
+
+  /* ---------- layout ---------- */
+  .hud{position:relative;z-index:2;height:100dvh;padding:clamp(10px,1.6vw,22px);display:grid;gap:clamp(10px,1.2vw,18px);
+    grid-template-columns:minmax(260px,1fr) minmax(320px,1.25fr) minmax(260px,1fr);
+    grid-template-rows:auto minmax(0,1fr) minmax(0,1fr) auto;
+    grid-template-areas:"head head head" "sys core appr" "sched core act" "dock dock dock"}
+  .head{grid-area:head} .sys{grid-area:sys} .appr{grid-area:appr} .sched{grid-area:sched} .act{grid-area:act} .core-wrap{grid-area:core} .dock{grid-area:dock}
+
+  /* ---------- header ---------- */
+  .head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:4px 6px}
+  .brand{display:flex;align-items:center;gap:14px}
+  .brand .mark{width:34px;height:34px;border-radius:50%;border:1.5px solid var(--cyan);box-shadow:0 0 18px var(--cyan-glow),inset 0 0 12px rgba(57,214,255,.35);position:relative}
+  .brand .mark::after{content:"";position:absolute;inset:8px;border-radius:50%;background:radial-gradient(circle,#fff 0,var(--cyan) 35%,transparent 70%);animation:pulse 2.6s ease-in-out infinite}
+  .brand h1{font-family:var(--hud);font-weight:700;font-size:clamp(15px,1.6vw,21px);letter-spacing:.32em;margin:0;color:#fff;text-shadow:0 0 14px var(--cyan-glow)}
+  .brand small{display:block;font-family:var(--body);font-weight:300;letter-spacing:.18em;font-size:10px;color:var(--ink-2);text-transform:uppercase;margin-top:2px}
+  .clock{font-family:var(--hud);font-size:clamp(16px,1.8vw,24px);letter-spacing:.12em;color:#fff;text-shadow:0 0 10px var(--cyan-glow);font-variant-numeric:tabular-nums;text-align:center}
+  .clock small{display:block;font-family:var(--body);font-size:10px;letter-spacing:.25em;color:var(--ink-2);font-weight:300}
+  .head-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .hbtn{font-family:var(--hud);font-size:10px;letter-spacing:.18em;text-transform:uppercase;padding:8px 12px;border:1px solid var(--line);border-radius:6px;color:var(--ink-2);background:var(--glass);backdrop-filter:blur(10px);transition:.2s}
+  .hbtn:hover,.hbtn[aria-pressed="true"]{color:#fff;border-color:var(--line-2);box-shadow:0 0 12px rgba(57,214,255,.25)}
+  .hbtn.danger{border-color:rgba(255,77,94,.45);color:#ffb3ba} .hbtn.danger[aria-pressed="true"]{background:rgba(255,77,94,.2);color:#fff}
+
+  /* ---------- panels ---------- */
+  .panel{position:relative;min-height:0;display:flex;flex-direction:column;background:var(--glass);backdrop-filter:blur(14px) saturate(1.2);border:1px solid var(--line);border-radius:var(--r);
+    box-shadow:0 0 0 1px rgba(57,214,255,.06) inset,0 10px 40px -18px rgba(0,0,0,.8),0 0 24px -8px rgba(57,214,255,.22);animation:float 7s ease-in-out infinite;will-change:transform}
+  .panel::before,.panel::after{content:"";position:absolute;width:18px;height:18px;border-color:var(--cyan);border-style:solid;opacity:.85;pointer-events:none}
+  .panel::before{top:-1px;left:-1px;border-width:2px 0 0 2px;border-radius:var(--r) 0 0 0}
+  .panel::after{bottom:-1px;right:-1px;border-width:0 2px 2px 0;border-radius:0 0 var(--r) 0}
+  .sys{animation-delay:-1s}.appr{animation-delay:-3.5s}.sched{animation-delay:-2s}.act{animation-delay:-5s}
+  .p-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px 8px;border-bottom:1px solid rgba(57,214,255,.14)}
+  .p-head h2{margin:0;font-family:var(--hud);font-size:11px;font-weight:700;letter-spacing:.26em;color:var(--cyan);text-transform:uppercase;display:flex;align-items:center;gap:8px}
+  .p-head h2::before{content:"";width:6px;height:6px;background:var(--cyan);box-shadow:0 0 8px var(--cyan);transform:rotate(45deg)}
+  .p-head .meta{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.08em}
+  .p-body{padding:10px 14px 12px;overflow:auto;min-height:0;flex:1}
+
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:13px}
+  .kv dt{color:var(--muted);letter-spacing:.08em;text-transform:uppercase;font-size:10px;padding-top:3px;font-weight:600}
+  .kv dd{margin:0;display:flex;align-items:center;gap:8px;min-width:0}
+  .kv dd .v{font-family:var(--mono);font-size:12px;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none;box-shadow:0 0 8px transparent;transition:.3s}
+  .dot.on{background:var(--green);box-shadow:0 0 10px var(--green)} .dot.warn{background:var(--amber);box-shadow:0 0 10px var(--amber)} .dot.off{background:var(--red);box-shadow:0 0 10px var(--red)}
+  .bar{height:3px;background:rgba(57,214,255,.12);border-radius:3px;overflow:hidden;margin-top:6px}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--cyan-dim),var(--cyan));box-shadow:0 0 8px var(--cyan-glow);width:0;transition:width .6s}
+  .stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px}
+  .stat{border:1px solid rgba(57,214,255,.16);border-radius:6px;padding:6px 6px 5px;text-align:center;background:rgba(4,12,22,.4)}
+  .stat b{display:block;font-family:var(--hud);font-size:16px;color:#fff;text-shadow:0 0 8px var(--cyan-glow);font-variant-numeric:tabular-nums}
+  .stat span{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+
+  .keys{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:6px}
+  .key{font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:8px 6px;border:1px solid var(--line);border-radius:6px;color:var(--ink-2);background:rgba(4,12,22,.35);transition:.2s;text-align:center}
+  .key:hover{border-color:var(--amber);color:#fff;box-shadow:0 0 12px var(--amber-glow)}
+  .key.live{border-color:var(--amber);color:var(--amber);box-shadow:0 0 14px var(--amber-glow);animation:tick 1.6s ease-in-out infinite}
+  .tickets{margin:10px 0 0;padding:0;list-style:none;display:grid;gap:6px}
+  .tickets li{display:flex;align-items:center;justify-content:space-between;gap:8px;font-family:var(--mono);font-size:11px;padding:6px 8px;border-radius:6px;background:rgba(255,181,69,.08);border:1px solid rgba(255,181,69,.35);color:#ffd89a}
+  .tickets li button{font-size:10px;letter-spacing:.1em;color:#ffb3ba;text-transform:uppercase}
+  .pending{margin-top:12px;border-top:1px dashed rgba(57,214,255,.2);padding-top:10px}
+  .pending h3,.sub-h{margin:0 0 6px;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .pending .req{font-size:12px;color:var(--ink-2);border-left:2px solid var(--amber);padding:4px 8px;margin-bottom:6px}
+  .pending .req code{font-family:var(--mono);font-size:11px;color:#fff;word-break:break-all}
+  .pending .req .when{font-size:10px;color:var(--muted);font-family:var(--mono)}
+
+  .jobs{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+  .job{display:grid;grid-template-columns:1fr auto;gap:4px 8px;align-items:center;padding:7px 9px;border:1px solid rgba(57,214,255,.14);border-radius:6px;background:rgba(4,12,22,.35)}
+  .job b{font-weight:600;font-size:13px;color:#fff} .job .sch{font-family:var(--mono);font-size:10px;color:var(--muted);grid-column:1}
+  .job .run{grid-row:1/3;font-family:var(--hud);font-size:9px;letter-spacing:.18em;padding:6px 8px;border:1px solid var(--line);border-radius:5px;color:var(--cyan)}
+  .job .run:hover{background:rgba(57,214,255,.12)}
+  .empty{font-size:12px;color:var(--muted);font-style:italic;padding:8px 0}
+  .empty code{font-family:var(--mono);color:var(--ink-2);font-size:11px}
+
+  .feed{list-style:none;margin:0;padding:0;display:grid;gap:5px;font-size:12px}
+  .feed li{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:start;padding:5px 0;border-bottom:1px solid rgba(57,214,255,.08)}
+  .feed .t{font-family:var(--mono);font-size:10px;color:var(--muted);padding-top:2px;white-space:nowrap}
+  .feed .lv{font-family:var(--mono);font-size:10px;padding:1px 5px;border-radius:3px;margin-right:6px}
+  .lv.L3{background:rgba(255,77,94,.18);color:#ffb3ba} .lv.L2{background:rgba(255,181,69,.18);color:#ffd89a} .lv.OK{background:rgba(61,240,165,.15);color:#9ff5cf} .lv.S{background:rgba(57,214,255,.14);color:var(--cyan)}
+  .feed code{font-family:var(--mono);font-size:11px;color:var(--ink-2);word-break:break-all}
+
+  /* ---------- core ---------- */
+  .core-wrap{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0;gap:10px}
+  .core{position:relative;width:min(100%,46vh,420px);aspect-ratio:1;display:grid;place-items:center}
+  #ring{position:absolute;inset:0;width:100%;height:100%}
+  #mic{position:relative;z-index:2;width:38%;aspect-ratio:1;border-radius:50%;display:grid;place-items:center;color:#fff;font-family:var(--hud);font-size:clamp(9px,1vw,12px);letter-spacing:.22em;text-transform:uppercase;
+    background:radial-gradient(circle,rgba(57,214,255,.28),rgba(7,18,32,.2) 70%);border:1px solid var(--line-2);box-shadow:0 0 40px var(--cyan-glow),inset 0 0 30px rgba(57,214,255,.25);transition:.25s}
+  #mic:hover{box-shadow:0 0 60px var(--cyan-glow),inset 0 0 40px rgba(57,214,255,.35)}
+  #mic .st{display:block;font-size:clamp(8px,.8vw,10px);color:var(--ink-2);letter-spacing:.28em;margin-top:4px;font-weight:300}
+  .core[data-state="listening"] #mic{border-color:#fff;box-shadow:0 0 70px var(--cyan-glow),inset 0 0 50px rgba(57,214,255,.45)}
+  .core[data-state="speaking"] #mic{border-color:var(--amber);box-shadow:0 0 60px var(--amber-glow),inset 0 0 40px rgba(255,181,69,.3)}
+  .core[data-state="thinking"] #mic{border-color:var(--cyan);animation:tick 1.1s ease-in-out infinite}
+  .core-caption{font-family:var(--hud);font-size:10px;letter-spacing:.32em;color:var(--ink-2);text-transform:uppercase;text-align:center;min-height:1.2em}
+  .core-toggles{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+  .tg{font-family:var(--hud);font-size:9px;letter-spacing:.18em;text-transform:uppercase;padding:6px 10px;border:1px solid var(--line);border-radius:999px;color:var(--muted);transition:.2s}
+  .tg[aria-pressed="true"]{color:#fff;border-color:var(--cyan);background:rgba(57,214,255,.12);box-shadow:0 0 10px rgba(57,214,255,.25)}
+
+  /* ---------- dock ---------- */
+  .dock{display:grid;grid-template-rows:minmax(0,1fr) auto;gap:8px;max-height:34vh;min-height:150px}
+  .log{overflow:auto;padding:4px 6px;display:flex;flex-direction:column;gap:8px;scroll-behavior:smooth}
+  .msg{max-width:min(78ch,92%);padding:9px 13px;border-radius:10px;font-size:14px;line-height:1.5;position:relative}
+  .msg.you{align-self:flex-end;background:rgba(57,214,255,.12);border:1px solid rgba(57,214,255,.35);color:#fff;border-bottom-right-radius:3px}
+  .msg.jarvis{align-self:flex-start;background:rgba(4,12,22,.6);border:1px solid rgba(57,214,255,.2);border-bottom-left-radius:3px;color:var(--ink)}
+  .msg.jarvis::before{content:"JARVIS";position:absolute;top:-8px;left:10px;font-family:var(--hud);font-size:8px;letter-spacing:.3em;color:var(--cyan);background:var(--void);padding:0 6px}
+  .msg.sys{align-self:center;font-family:var(--mono);font-size:11px;color:var(--muted);background:none;border:0;padding:2px 0}
+  .msg.err{align-self:center;font-family:var(--mono);font-size:11px;color:#ffb3ba;border:1px solid rgba(255,77,94,.4);background:rgba(255,77,94,.08)}
+  .msg p{margin:0 0 .5em} .msg p:last-child{margin:0}
+  .msg pre{margin:.5em 0;padding:8px 10px;border-radius:6px;background:rgba(0,0,0,.45);border:1px solid rgba(57,214,255,.18);font-family:var(--mono);font-size:12px;overflow:auto}
+  .msg code{font-family:var(--mono);font-size:12.5px;background:rgba(57,214,255,.12);padding:.05em .35em;border-radius:4px}
+  .msg pre code{background:none;padding:0}
+  .tools{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+  .chip{font-family:var(--mono);font-size:10px;letter-spacing:.06em;padding:2px 8px;border-radius:999px;border:1px solid rgba(57,214,255,.35);color:var(--cyan);background:rgba(57,214,255,.08)}
+  .chip.running{animation:tick 1s ease-in-out infinite}
+  .cursor::after{content:"▍";color:var(--cyan);animation:blink 1s steps(2) infinite}
+  .composer{display:grid;grid-template-columns:auto 1fr auto auto;gap:8px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--glass-2);backdrop-filter:blur(12px)}
+  .composer .prompt{font-family:var(--hud);font-size:12px;color:var(--cyan);letter-spacing:.2em}
+  .composer input{background:transparent;border:0;outline:0;min-width:0;font-size:15px;color:#fff;padding:6px 2px}
+  .composer input::placeholder{color:var(--muted);font-style:italic;font-weight:300}
+  .send,.talk{font-family:var(--hud);font-size:10px;letter-spacing:.2em;padding:9px 14px;border-radius:7px;border:1px solid var(--line-2);color:#fff;background:rgba(57,214,255,.12);transition:.2s}
+  .send:hover,.talk:hover{background:rgba(57,214,255,.25);box-shadow:0 0 14px var(--cyan-glow)}
+  .talk{display:none}
+
+  /* ---------- drawers ---------- */
+  .drawer{position:fixed;top:0;bottom:0;right:0;width:min(520px,94vw);z-index:20;transform:translateX(104%);transition:transform .35s cubic-bezier(.2,.8,.2,1);background:rgba(4,10,18,.92);backdrop-filter:blur(18px);border-left:1px solid var(--line-2);box-shadow:-20px 0 60px rgba(0,0,0,.6);display:flex;flex-direction:column}
+  .drawer[aria-hidden="false"]{transform:none}
+  .drawer header{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line)}
+  .drawer header h2{margin:0;font-family:var(--hud);font-size:12px;letter-spacing:.28em;color:var(--cyan)}
+  .drawer .body{padding:14px 18px;overflow:auto;font-size:13px}
+  .drawer pre{white-space:pre-wrap;font-family:var(--mono);font-size:12px;color:var(--ink-2);background:rgba(0,0,0,.35);border:1px solid rgba(57,214,255,.15);border-radius:8px;padding:12px}
+  .draft{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:10px;background:rgba(4,12,22,.5)}
+  .draft b{font-family:var(--hud);font-size:11px;letter-spacing:.16em;color:#fff} .draft .st{font-family:var(--mono);font-size:10px;color:var(--amber);margin-left:8px}
+  .draft p{margin:6px 0 0;color:var(--ink-2);font-size:12px;white-space:pre-wrap}
+  .sess{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:8px 0;border-bottom:1px solid rgba(57,214,255,.1);font-size:12px}
+  .sess b{color:#fff;font-weight:600} .sess .m{font-family:var(--mono);font-size:10px;color:var(--muted)}
+
+  /* ---------- boot ---------- */
+  .boot{position:fixed;inset:0;z-index:50;background:var(--void);display:grid;place-items:center;transition:opacity .6s;font-family:var(--mono);color:var(--cyan)}
+  .boot.done{opacity:0;pointer-events:none}
+  .boot pre{margin:0;font-size:12px;line-height:1.8;letter-spacing:.04em;text-shadow:0 0 8px var(--cyan-glow)}
+  .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%) translateY(20px);z-index:40;opacity:0;transition:.3s;font-family:var(--mono);font-size:12px;padding:8px 14px;border-radius:8px;background:rgba(4,12,22,.9);border:1px solid var(--line-2);color:#fff;box-shadow:0 0 20px rgba(57,214,255,.25)}
+  .toast.show{opacity:1;transform:translateX(-50%)}
+
+  @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+  @keyframes pulse{0%,100%{opacity:.7;transform:scale(.9)}50%{opacity:1;transform:scale(1.08)}}
+  @keyframes tick{0%,100%{opacity:1}50%{opacity:.55}}
+  @keyframes blink{50%{opacity:0}}
+
+  /* ---------- responsive ---------- */
+  @media (max-width:1100px){
+    body{overflow:auto}
+    .hud{height:auto;min-height:100dvh;grid-template-columns:1fr;grid-template-rows:auto;grid-template-areas:"head" "core" "dock" "appr" "sys" "sched" "act"}
+    .core{width:min(70vw,320px)} .dock{max-height:none;min-height:260px}
+    .panel{animation:none} .p-body{max-height:320px}
+    .head{flex-wrap:wrap} .clock{order:3;width:100%}
+    .talk{display:inline-block}
+  }
+  @media (max-width:560px){
+    .hud{padding:10px} .composer{grid-template-columns:1fr auto} .composer .prompt,.composer .talk{display:none}
+    .stat-row{grid-template-columns:repeat(2,1fr)} .brand h1{letter-spacing:.2em}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .panel,.brand .mark::after,.key.live,.chip.running,.core[data-state="thinking"] #mic{animation:none!important}
+    .log{scroll-behavior:auto}
+  }
+</style>
+<canvas id="bg" aria-hidden="true"></canvas>
+<div class="vignette" aria-hidden="true"></div>
+<div class="scan" aria-hidden="true"></div>
+
+<div class="boot" id="boot" aria-live="polite"><pre id="bootlog"></pre></div>
+<div class="toast" id="toast" role="status"></div>
+
+<div class="hud">
+  <header class="head">
+    <div class="brand"><div class="mark" aria-hidden="true"></div><div><h1>J.A.R.V.I.S.</h1><small>Growstack · Hermes orchestrator</small></div></div>
+    <div class="clock" id="clock">--:--:--<small id="date">—</small></div>
+    <div class="head-actions">
+      <button class="hbtn" id="btn-memory" aria-pressed="false">Memory</button>
+      <button class="hbtn" id="btn-drafts" aria-pressed="false">Drafts</button>
+      <button class="hbtn" id="btn-sessions" aria-pressed="false">Sessions</button>
+      <button class="hbtn danger" id="btn-pause" aria-pressed="false" title="Emergency stop: pauses cron, kanban and new gateway turns">Halt</button>
+    </div>
+  </header>
+
+  <section class="panel sys" aria-labelledby="h-sys">
+    <div class="p-head"><h2 id="h-sys">Systems</h2><span class="meta" id="sys-meta">—</span></div>
+    <div class="p-body">
+      <dl class="kv">
+        <dt>Gateway</dt><dd><i class="dot" id="d-gw"></i><span class="v" id="v-gw">—</span></dd>
+        <dt>WhatsApp</dt><dd><i class="dot" id="d-wa"></i><span class="v" id="v-wa">—</span></dd>
+        <dt>API link</dt><dd><i class="dot" id="d-api"></i><span class="v" id="v-api">—</span></dd>
+        <dt>Brain</dt><dd><i class="dot" id="d-model"></i><span class="v" id="v-model">—</span></dd>
+        <dt>Memory</dt><dd><i class="dot" id="d-mem"></i><span class="v" id="v-mem">—</span></dd>
+      </dl>
+      <div class="bar" title="heartbeat freshness"><i id="hb-bar"></i></div>
+      <div class="stat-row">
+        <div class="stat"><b id="s-cron">0</b><span>jobs</span></div>
+        <div class="stat"><b id="s-tickets">0</b><span>tickets</span></div>
+        <div class="stat"><b id="s-drafts">0</b><span>drafts</span></div>
+        <div class="stat"><b id="s-blocks">0</b><span>blocks 24h</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="core-wrap">
+    <div class="core" id="core" data-state="idle">
+      <canvas id="ring" aria-hidden="true"></canvas>
+      <button id="mic" aria-label="Push to talk"><span>Talk</span><span class="st" id="mic-st">Hold / click</span></button>
+    </div>
+    <div class="core-caption" id="caption">Standing by</div>
+    <div class="core-toggles">
+      <button class="tg" id="tg-voice" aria-pressed="true">Voice replies</button>
+      <button class="tg" id="tg-wake" aria-pressed="false">“Hey Jarvis”</button>
+    </div>
+  </div>
+
+  <section class="panel appr" aria-labelledby="h-appr">
+    <div class="p-head"><h2 id="h-appr">Approvals</h2><label class="meta" style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="standing" style="accent-color:var(--amber)"> standing (no expiry)</label></div>
+    <div class="p-body">
+      <div class="keys" id="keys"></div>
+      <ul class="tickets" id="tickets"></ul>
+      <div class="pending"><h3>Blocked, awaiting you</h3><div id="pending"><div class="empty">Nothing waiting.</div></div></div>
+    </div>
+  </section>
+
+  <section class="panel sched" aria-labelledby="h-sched">
+    <div class="p-head"><h2 id="h-sched">Schedule</h2><span class="meta" id="sched-meta">cron</span></div>
+    <div class="p-body"><ul class="jobs" id="jobs"></ul></div>
+  </section>
+
+  <section class="panel act" aria-labelledby="h-act">
+    <div class="p-head"><h2 id="h-act">Activity</h2><span class="meta">policy guard · sessions</span></div>
+    <div class="p-body"><ul class="feed" id="feed"></ul></div>
+  </section>
+
+  <section class="dock" aria-label="Conversation">
+    <div class="log" id="log" aria-live="polite"></div>
+    <form class="composer" id="composer" autocomplete="off">
+      <span class="prompt" aria-hidden="true">&gt;_</span>
+      <input id="input" placeholder="Ask Jarvis… (Enter to send)" aria-label="Message to Jarvis">
+      <button type="button" class="talk" id="talk">Talk</button>
+      <button type="submit" class="send">Send</button>
+    </form>
+  </section>
+</div>
+
+<aside class="drawer" id="dr-memory" aria-hidden="true"><header><h2>MEMORY</h2><button class="hbtn" data-close>Close</button></header><div class="body" id="memory-body"></div></aside>
+<aside class="drawer" id="dr-drafts" aria-hidden="true"><header><h2>CONTENT DRAFTS</h2><button class="hbtn" data-close>Close</button></header><div class="body" id="drafts-body"></div></aside>
+<aside class="drawer" id="dr-sessions" aria-hidden="true"><header><h2>SESSIONS</h2><button class="hbtn" data-close>Close</button></header><div class="body" id="sessions-body"></div></aside>
+
+<script>
+(() => {
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const H = { "X-Jarvis": "1", "Content-Type": "application/json" };
+/* DEMO mode: when this page is opened anywhere except the local backend (e.g. the published preview),
+   it renders sample data and a simulated reply so the design can be seen without Hermes. */
+const DEMO = !(location.protocol === "http:" && /^(127\.0\.0\.1|localhost)$/.test(location.hostname));
+const now = () => Date.now() / 1000;
+const MOCK = {
+  "/api/status": () => ({ gateway: { running: true, pid: 20940, heartbeat_age_s: 14, platforms: { whatsapp: "connected", api_server: "connected" } }, whatsapp: { connected: true, port: 3777, uptime_s: 5420 }, api: { ok: true, base: "http://127.0.0.1:8642", model_name: "hermes-agent", enabled: true }, model: { default: "claude-sonnet-5", provider: "anthropic" }, counts: { cron: 6, approvals: 1, drafts: 2, policy_blocks_24h: 3 }, memory: { memory_bytes: 2380, user_bytes: 910 }, paused: false }),
+  "/api/approvals": () => ({ keys: ["merge", "push-main", "release", "deploy", "email-send", "social-post", "issue-close"], tickets: [{ key: "merge", age_s: 240, valid: true, expires_in_s: 1560 }] }),
+  "/api/policy-log": () => [{ ts: now() - 300, kind: "BLOCK", level: "L2", key: "merge", what: "", cmd: "gh pr merge 182 --squash" }, { ts: now() - 1500, kind: "ALLOW", level: "", key: "", what: "", cmd: "git push -u origin jarvis/fix-auth-redirect" }, { ts: now() - 4200, kind: "BLOCK", level: "L3", key: "", what: "delete a repository", cmd: "gh repo delete growstack/scratch --yes" }, { ts: now() - 9000, kind: "ALLOW", level: "", key: "", what: "", cmd: "npm test -- --ci" }],
+  "/api/cron": () => [{ name: "Trend hunter", schedule: "45 6 * * 1-6", next_run: "2026-08-21T06:45" }, { name: "Morning brief", schedule: "30 7 * * 1-6", next_run: "2026-08-21T07:30" }, { name: "PR shepherd", schedule: "0 9-19/2 * * 1-6", next_run: "2026-08-20T19:00" }, { name: "Evening wrap", schedule: "30 18 * * 1-5", next_run: "2026-08-20T18:30" }, { name: "Weekly competitor digest", schedule: "15 8 * * 1", next_run: "2026-08-24T08:15" }, { name: "Weekly content plan", schedule: "0 20 * * 0", next_run: "2026-08-23T20:00" }],
+  "/api/sessions": () => [{ id: "a", source: "whatsapp", title: "Fix auth bug in dashboard", model: "claude-sonnet-5", messages: 18, tool_calls: 11, cost_usd: 0.42, last_activity_at: now() - 700 }, { id: "b", source: "api_server", title: "Jarvis console", model: "claude-sonnet-5", messages: 6, tool_calls: 1, cost_usd: 0.03, last_activity_at: now() - 60 }, { id: "c", source: "cron", title: "Morning brief", model: "claude-sonnet-5", messages: 9, tool_calls: 7, cost_usd: 0.11, last_activity_at: now() - 36000 }],
+  "/api/memory": () => ({ memory: "# MEMORY\n- turgo-frontend: Next.js, dev server :3000, base branch main\n- Coding rule: tests must pass before a PR; never merge without the owner\n- Brand palette: #39D6FF cyan, #FFB545 amber", user: "# USER\n- Founder/tech at Growstack, Asia/Kolkata, working hours 09–19\n- Prefers end-to-end runbooks with exact commands" }),
+  "/api/content": () => [{ slug: "2026-08-20-agents-need-permission-levels", status: "draft", post: "Hook: Your AI agent just merged to main. Did you say yes?\n\nMost “autonomous” agents have two settings: off, and reckless…", files: ["post.md", "cover-1200x1200.png", "manifest.json"] }],
+};
+const mock = (p) => { const k = p.split("?")[0]; return Promise.resolve(MOCK[k] ? MOCK[k]() : {}); };
+const api = {
+  get: (p) => DEMO ? mock(p) : fetch(p).then(r => r.json()),
+  post: (p, b) => DEMO ? Promise.resolve({ ok: true, tickets: MOCK["/api/approvals"]().tickets }) : fetch(p, { method: "POST", headers: H, body: JSON.stringify(b || {}) }).then(r => r.json()),
+  del: (p) => DEMO ? Promise.resolve({ ok: true, tickets: [] }) : fetch(p, { method: "DELETE", headers: H }).then(r => r.json()),
+};
+const fmtTs = (v) => { if (!v) return ""; const d = new Date(typeof v === "number" ? v * 1000 : v); return isNaN(d) ? String(v).slice(0, 16) : d.toLocaleString("en-GB", { hour12: false, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }); };
+const toast = (t) => { const el = $("#toast"); el.textContent = t; el.classList.add("show"); clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove("show"), 2600); };
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const ago = (ts) => { if (!ts) return "—"; const s = Math.max(0, (Date.now() / 1000) - ts); if (s < 60) return `${s | 0}s`; if (s < 3600) return `${(s / 60) | 0}m`; if (s < 86400) return `${(s / 3600) | 0}h`; return `${(s / 86400) | 0}d`; };
+const fmtAge = (s) => s == null ? "—" : s < 60 ? `${s | 0}s ago` : s < 3600 ? `${(s / 60) | 0}m ago` : `${(s / 3600) | 0}h ago`;
+
+/* ---------------- boot ---------------- */
+(async () => {
+  const lines = ["> HERMES ORCHESTRATOR ........ link", "> POLICY GUARD ............... armed", "> MEMORY ..................... mounted", "> VOICE PIPELINE ............. ready", "> J.A.R.V.I.S. ONLINE"];
+  const pre = $("#bootlog");
+  if (!reduced) { for (const l of lines) { pre.textContent += l + "\n"; await new Promise(r => setTimeout(r, 180)); } await new Promise(r => setTimeout(r, 250)); }
+  $("#boot").classList.add("done");
+})();
+
+/* ---------------- clock ---------------- */
+setInterval(() => { const d = new Date(); $("#clock").firstChild.textContent = d.toLocaleTimeString("en-GB", { hour12: false }); $("#date").textContent = d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" }).toUpperCase(); }, 1000);
+
+/* ---------------- background particles ---------------- */
+(() => {
+  const c = $("#bg"), x = c.getContext("2d"); let W, Hh, pts = [];
+  const resize = () => { W = c.width = innerWidth * devicePixelRatio; Hh = c.height = innerHeight * devicePixelRatio; pts = Array.from({ length: Math.min(140, (innerWidth * innerHeight) / 14000 | 0) }, () => ({ x: Math.random() * W, y: Math.random() * Hh, vx: (Math.random() - .5) * .25 * devicePixelRatio, vy: (Math.random() - .5) * .25 * devicePixelRatio, r: Math.random() * 1.4 + .4 })); };
+  addEventListener("resize", resize); resize();
+  const step = () => {
+    x.clearRect(0, 0, W, Hh);
+    const g = 64 * devicePixelRatio; x.strokeStyle = "rgba(57,214,255,.05)"; x.lineWidth = 1;
+    for (let i = 0; i < W; i += g) { x.beginPath(); x.moveTo(i, 0); x.lineTo(i, Hh); x.stroke(); }
+    for (let j = 0; j < Hh; j += g) { x.beginPath(); x.moveTo(0, j); x.lineTo(W, j); x.stroke(); }
+    for (const p of pts) {
+      if (!reduced) { p.x += p.vx; p.y += p.vy; if (p.x < 0 || p.x > W) p.vx *= -1; if (p.y < 0 || p.y > Hh) p.vy *= -1; }
+      x.fillStyle = "rgba(57,214,255,.55)"; x.beginPath(); x.arc(p.x, p.y, p.r * devicePixelRatio, 0, 7); x.fill();
+    }
+    for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) { const a = pts[i], b = pts[j], d = Math.hypot(a.x - b.x, a.y - b.y); if (d < 120 * devicePixelRatio) { x.strokeStyle = `rgba(57,214,255,${(1 - d / (120 * devicePixelRatio)) * .18})`; x.beginPath(); x.moveTo(a.x, a.y); x.lineTo(b.x, b.y); x.stroke(); } }
+    if (!reduced) requestAnimationFrame(step);
+  };
+  step();
+})();
+
+/* ---------------- parallax ---------------- */
+if (!reduced && matchMedia("(pointer:fine)").matches) {
+  const panels = [...document.querySelectorAll(".panel")];
+  addEventListener("mousemove", (e) => { const dx = (e.clientX / innerWidth - .5), dy = (e.clientY / innerHeight - .5); panels.forEach((p, i) => { const k = (i % 2 ? -1 : 1) * 6; p.style.translate = `${dx * k}px ${dy * k}px`; }); }, { passive: true });
+}
+
+/* ---------------- core ring ---------------- */
+const core = $("#core"); const ring = $("#ring"); const rx = ring.getContext("2d");
+let level = 0;      // 0..1 live amplitude (mic or synthetic)
+let state = "idle"; // idle | listening | thinking | speaking
+const setState = (s, caption) => { state = s; core.dataset.state = s; $("#caption").textContent = caption || { idle: "Standing by", listening: "Listening", thinking: "Processing", speaking: "Speaking" }[s]; $("#mic-st").textContent = { idle: "Hold / click", listening: "Release to send", thinking: "Working…", speaking: "Tap to stop" }[s]; };
+(() => {
+  let t = 0;
+  const draw = () => {
+    const sz = ring.clientWidth * devicePixelRatio; if (ring.width !== sz) { ring.width = ring.height = sz; }
+    const cx = sz / 2, cy = sz / 2, R = sz / 2; rx.clearRect(0, 0, sz, sz);
+    const speed = state === "thinking" ? 3.2 : state === "listening" ? 1.6 : 1;
+    t += (reduced ? 0 : .008 * speed);
+    const col = state === "speaking" ? "255,181,69" : "57,214,255";
+    const amp = state === "idle" ? (Math.sin(t * 2) * .5 + .5) * .15 : level;
+    // outer tick ring
+    rx.save(); rx.translate(cx, cy);
+    for (let i = 0; i < 120; i++) { const a = (i / 120) * Math.PI * 2; const long = i % 10 === 0; rx.strokeStyle = `rgba(${col},${long ? .8 : .28})`; rx.lineWidth = (long ? 2 : 1) * devicePixelRatio; rx.beginPath(); rx.moveTo(Math.cos(a) * R * .97, Math.sin(a) * R * .97); rx.lineTo(Math.cos(a) * R * (long ? .90 : .94), Math.sin(a) * R * (long ? .90 : .94)); rx.stroke(); }
+    // rotating arcs
+    const arcs = [[.86, .5, 1, 6], [.78, -.8, .55, 4], [.70, 1.3, .7, 3], [.62, -.45, 1.6, 5]];
+    arcs.forEach(([r, dir, len, w], i) => { rx.strokeStyle = `rgba(${col},${.55 + i * .08})`; rx.lineWidth = w * devicePixelRatio * (1 + amp * .6); rx.lineCap = "round"; const a0 = t * dir * (1 + i * .2); rx.beginPath(); rx.arc(0, 0, R * r, a0, a0 + len); rx.stroke(); rx.beginPath(); rx.arc(0, 0, R * r, a0 + Math.PI, a0 + Math.PI + len * .6); rx.stroke(); });
+    // waveform ring (amplitude)
+    rx.strokeStyle = `rgba(${col},.9)`; rx.lineWidth = 1.5 * devicePixelRatio; rx.beginPath();
+    for (let i = 0; i <= 180; i++) { const a = (i / 180) * Math.PI * 2; const wob = Math.sin(a * 12 + t * 20) * amp * R * .06 + Math.sin(a * 5 - t * 9) * amp * R * .03; const r = R * .52 + wob; i ? rx.lineTo(Math.cos(a) * r, Math.sin(a) * r) : rx.moveTo(Math.cos(a) * r, Math.sin(a) * r); }
+    rx.closePath(); rx.stroke();
+    // core glow
+    const g = rx.createRadialGradient(0, 0, 0, 0, 0, R * .45); g.addColorStop(0, `rgba(${col},${.35 + amp * .4})`); g.addColorStop(1, "rgba(0,0,0,0)"); rx.fillStyle = g; rx.beginPath(); rx.arc(0, 0, R * .45, 0, 7); rx.fill();
+    rx.restore();
+    requestAnimationFrame(draw);
+  };
+  draw();
+})();
+
+/* ---------------- speech ---------------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const synth = window.speechSynthesis;
+let voiceOn = localStorage.getItem("jarvis.voice") !== "0";
+let wakeOn = false;
+$("#tg-voice").setAttribute("aria-pressed", voiceOn);
+$("#tg-voice").onclick = (e) => { voiceOn = !voiceOn; localStorage.setItem("jarvis.voice", voiceOn ? "1" : "0"); e.currentTarget.setAttribute("aria-pressed", voiceOn); if (!voiceOn) synth?.cancel(); };
+const pickVoice = () => { const vs = synth?.getVoices?.() || []; const prefs = [/Ryan/i, /Google UK English Male/i, /Daniel/i, /George/i, /en-GB/i, /Microsoft.*Natural/i, /en-US/i]; for (const p of prefs) { const v = vs.find(v => p.test(v.name) || p.test(v.lang)); if (v) return v; } return vs[0]; };
+const stripMd = (s) => s.replace(/```[\s\S]*?```/g, " code block omitted ").replace(/`([^`]*)`/g, "$1").replace(/[*_#>\[\]()]/g, "").replace(/https?:\/\/\S+/g, "link").slice(0, 1200);
+let speakTimer;
+const speak = (text) => {
+  if (!voiceOn || !synth || !text.trim()) return;
+  synth.cancel(); const u = new SpeechSynthesisUtterance(stripMd(text)); const v = pickVoice(); if (v) u.voice = v; u.rate = 1.03; u.pitch = .92;
+  u.onstart = () => { setState("speaking"); speakTimer = setInterval(() => { level = .35 + Math.random() * .5; }, 90); };
+  u.onend = u.onerror = () => { clearInterval(speakTimer); level = 0; if (state === "speaking") setState("idle"); if (wakeOn) startWake(); };
+  synth.speak(u);
+};
+$("#mic").addEventListener("click", () => { if (state === "speaking") { synth.cancel(); return; } if (state === "listening") { stopListen(true); return; } if (state === "idle") listen(); });
+$("#talk").addEventListener("click", () => $("#mic").click());
+
+let rec, recFinal = "", analyser, micStream, levelTimer;
+async function meter() {
+  try { micStream = await navigator.mediaDevices.getUserMedia({ audio: true }); const ac = new (window.AudioContext || window.webkitAudioContext)(); const src = ac.createMediaStreamSource(micStream); analyser = ac.createAnalyser(); analyser.fftSize = 512; src.connect(analyser); const buf = new Uint8Array(analyser.frequencyBinCount); levelTimer = setInterval(() => { analyser.getByteTimeDomainData(buf); let s = 0; for (const v of buf) { const d = (v - 128) / 128; s += d * d; } level = Math.min(1, Math.sqrt(s / buf.length) * 6); }, 50); }
+  catch { levelTimer = setInterval(() => { level = .3 + Math.random() * .4; }, 120); }
+}
+function unmeter() { clearInterval(levelTimer); level = 0; micStream?.getTracks().forEach(t => t.stop()); micStream = null; }
+function listen() {
+  if (!SR) { toast("Voice input needs Chrome or Edge"); $("#input").focus(); return; }
+  stopWake(); synth?.cancel(); recFinal = ""; setState("listening");
+  rec = new SR(); rec.lang = "en-IN"; rec.interimResults = true; rec.continuous = false;
+  rec.onresult = (e) => { let interim = ""; for (let i = e.resultIndex; i < e.results.length; i++) { const r = e.results[i]; if (r.isFinal) recFinal += r[0].transcript; else interim += r[0].transcript; } $("#input").value = (recFinal + " " + interim).trim(); };
+  rec.onerror = (e) => { if (e.error !== "aborted") toast("Mic: " + e.error); };
+  rec.onend = () => { unmeter(); const text = (recFinal || $("#input").value).trim(); if (state === "listening") { if (text) send(text); else setState("idle"); } if (!text && wakeOn) startWake(); };
+  rec.start(); meter();
+}
+function stopListen(sendIt) { try { rec?.stop(); } catch { } if (!sendIt) setState("idle"); }
+
+/* wake word — continuous recognition looking for "hey jarvis" / "jarvis" */
+let wake;
+function startWake() { if (!SR || !wakeOn || wake) return; wake = new SR(); wake.lang = "en-IN"; wake.continuous = true; wake.interimResults = true; wake.onresult = (e) => { for (let i = e.resultIndex; i < e.results.length; i++) { const t = e.results[i][0].transcript.toLowerCase(); if (/\b(hey|ok|okay)?\s*jarvis\b/.test(t)) { const cmd = t.replace(/.*\bjarvis\b[,.!?]?\s*/, "").trim(); stopWake(); beep(); if (cmd.length > 3) send(cmd); else listen(); return; } } }; wake.onend = () => { wake = null; if (wakeOn && state === "idle") setTimeout(startWake, 250); }; wake.onerror = (e) => { if (e.error === "not-allowed") { wakeOn = false; $("#tg-wake").setAttribute("aria-pressed", "false"); toast("Microphone permission denied"); } }; try { wake.start(); $("#caption").textContent = "Listening for “Hey Jarvis”"; } catch { wake = null; } }
+function stopWake() { if (wake) { const w = wake; wake = null; try { w.onend = null; w.stop(); } catch { } } }
+$("#tg-wake").onclick = (e) => { wakeOn = !wakeOn; e.currentTarget.setAttribute("aria-pressed", wakeOn); if (wakeOn) startWake(); else { stopWake(); setState("idle"); } };
+function beep() { try { const ac = new (window.AudioContext || window.webkitAudioContext)(); const o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = 880; g.gain.value = .06; o.connect(g); g.connect(ac.destination); o.start(); o.frequency.exponentialRampToValueAtTime(1320, ac.currentTime + .12); o.stop(ac.currentTime + .16); } catch { } }
+
+/* ---------------- chat ---------------- */
+const log = $("#log");
+const md = (s) => { let h = esc(s); h = h.replace(/```(\w*)\n([\s\S]*?)```/g, (_, l, c) => `<pre><code>${c}</code></pre>`); h = h.replace(/`([^`\n]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/(^|\n)[-•] (.+)/g, "$1• $2"); return h.split(/\n{2,}/).map(p => `<p>${p.replace(/\n/g, "<br>")}</p>`).join(""); };
+const addMsg = (cls, html) => { const el = document.createElement("div"); el.className = "msg " + cls; el.innerHTML = html; log.appendChild(el); log.scrollTop = log.scrollHeight; return el; };
+let busy = false;
+async function send(text) {
+  text = (text || "").trim(); if (!text || busy) return; busy = true;
+  $("#input").value = ""; addMsg("you", esc(text)); setState("thinking");
+  const el = addMsg("jarvis", "<p class=\"cursor\"></p><div class=\"tools\"></div>"); const p = el.querySelector("p"), tools = el.querySelector(".tools");
+  let full = "", chips = {};
+  const chip = (name, done) => { if (!chips[name]) { const c = document.createElement("span"); c.className = "chip running"; c.textContent = name; tools.appendChild(c); chips[name] = c; } if (done) chips[name].classList.remove("running"); };
+  if (DEMO) {
+    const reply = "Preview mode — this page isn't linked to Hermes. On your PC run `interface\\start.ps1` and open http://127.0.0.1:7788 for the live console: real status, approvals, schedule, memory, and streaming replies from your Hermes brain.";
+    chip("session_search"); await new Promise(r => setTimeout(r, 600)); chip("session_search", true);
+    for (const ch of reply) { full += ch; p.innerHTML = md(full); p.classList.add("cursor"); log.scrollTop = log.scrollHeight; await new Promise(r => setTimeout(r, reduced ? 0 : 14)); }
+    p.classList.remove("cursor"); setState("idle"); speak(full); busy = false; return;
+  }
+  try {
+    const r = await fetch("/api/chat", { method: "POST", headers: H, body: JSON.stringify({ input: text, conversation: "jarvis-console" }) });
+    if (!r.ok || !r.body) { const j = await r.json().catch(() => ({})); throw new Error(j.detail || j.error || ("HTTP " + r.status)); }
+    const rd = r.body.getReader(), dec = new TextDecoder(); let buf = "";
+    while (true) {
+      const { value, done } = await rd.read(); if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let idx; while ((idx = buf.indexOf("\n\n")) >= 0) {
+        const block = buf.slice(0, idx); buf = buf.slice(idx + 2);
+        let ev = "", data = "";
+        for (const ln of block.split("\n")) { if (ln.startsWith("event:")) ev = ln.slice(6).trim(); else if (ln.startsWith("data:")) data += ln.slice(5).trim(); }
+        if (!data || data === "[DONE]") continue;
+        let d; try { d = JSON.parse(data); } catch { continue; }
+        const type = d.type || ev;
+        if (type === "response.output_text.delta" && d.delta) { full += d.delta; p.innerHTML = md(full); p.classList.add("cursor"); log.scrollTop = log.scrollHeight; }
+        else if (type === "response.output_item.added" && d.item?.type === "message" && full && !/\n\s*$/.test(full)) full += "\n\n";
+        else if (type === "response.output_item.added" && d.item?.type === "function_call") chip(d.item.name || "tool");
+        else if (type === "response.output_item.done" && d.item?.type === "function_call") chip(d.item.name || "tool", true);
+        else if (type === "hermes.tool.progress") chip(d.tool || d.name || d.tool_name || "tool", d.status === "done" || d.done);
+        else if (type === "response.completed" && !full) { const msg = (d.response?.output || []).find(o => o.type === "message"); full = (msg?.content || []).map(c => c.text || "").join("") || ""; p.innerHTML = md(full); }
+        else if (d.choices?.[0]?.delta?.content) { full += d.choices[0].delta.content; p.innerHTML = md(full); }
+        else if (type === "error" || d.error) throw new Error(d.error?.message || d.message || "stream error");
+      }
+    }
+    p.classList.remove("cursor"); Object.values(chips).forEach(c => c.classList.remove("running"));
+    if (!full) p.innerHTML = "<i>(no text returned)</i>";
+    setState("idle"); speak(full); refresh();
+  } catch (e) { p.classList.remove("cursor"); el.remove(); addMsg("err", "Link error: " + esc(e.message)); setState("idle"); }
+  busy = false; if (wakeOn && state === "idle") startWake();
+}
+$("#composer").addEventListener("submit", (e) => { e.preventDefault(); send($("#input").value); });
+
+/* ---------------- panels ---------------- */
+const dot = (id, s) => { const el = $(id); el.className = "dot " + (s === true ? "on" : s === "warn" ? "warn" : s === false ? "off" : ""); };
+let lastStatus;
+async function refresh() {
+  try {
+    const [s, a, l, j] = await Promise.all([api.get("/api/status"), api.get("/api/approvals"), api.get("/api/policy-log?limit=80"), api.get("/api/cron")]);
+    lastStatus = s;
+    dot("#d-gw", s.gateway.running); $("#v-gw").textContent = s.gateway.running ? `running · pid ${s.gateway.pid ?? "?"} · hb ${fmtAge(s.gateway.heartbeat_age_s)}` : "down";
+    dot("#d-wa", s.whatsapp.connected); $("#v-wa").textContent = s.whatsapp.connected ? `connected · bridge :${s.whatsapp.port} · up ${((s.whatsapp.uptime_s || 0) / 60) | 0}m` : `not connected (bridge :${s.whatsapp.port})`;
+    dot("#d-api", s.api.ok); $("#v-api").textContent = s.api.ok ? `${s.api.base} · ${s.api.model_name}` : (s.api.enabled ? "enabled, not reachable" : "API_SERVER disabled");
+    const weak = /free|:free/i.test(s.model.default || ""); dot("#d-model", weak ? "warn" : !!s.model.default); $("#v-model").textContent = `${s.model.default || "?"} · ${s.model.provider || "?"}${weak ? " · free tier — upgrade" : ""}`;
+    const mem = s.memory.memory_bytes + s.memory.user_bytes; dot("#d-mem", mem > 0 ? true : "warn"); $("#v-mem").textContent = mem ? `${(mem / 1024).toFixed(1)} KB learned` : "empty — seed it (Phase 2)";
+    $("#hb-bar").style.width = Math.max(4, 100 - Math.min(100, (s.gateway.heartbeat_age_s || 0) / 1.8)) + "%";
+    $("#s-cron").textContent = s.counts.cron; $("#s-tickets").textContent = s.counts.approvals; $("#s-drafts").textContent = s.counts.drafts; $("#s-blocks").textContent = s.counts.policy_blocks_24h;
+    $("#sys-meta").textContent = new Date().toLocaleTimeString("en-GB", { hour12: false });
+    $("#btn-pause").setAttribute("aria-pressed", !!s.paused); $("#btn-pause").textContent = s.paused ? "Halted — Resume" : "Halt";
+    // approvals
+    const live = new Set(a.tickets.filter(t => t.valid).map(t => t.key));
+    $("#keys").innerHTML = a.keys.map(k => `<button class="key ${live.has(k) ? "live" : ""}" data-key="${k}" title="Issue a 30-minute single-use ticket for: ${k}">${k}</button>`).join("");
+    $("#tickets").innerHTML = a.tickets.map(t => `<li><span>● ${t.key} · ${t.standing ? "STANDING — Jarvis may do this unasked" : (t.valid ? `expires in ${(t.expires_in_s / 60) | 0}m` : "expired")}</span><button data-revoke="${t.key}">revoke</button></li>`).join("");
+    const pend = l.filter(e => e.kind === "BLOCK" && e.level === "L2").slice(0, 3);
+    $("#pending").innerHTML = pend.length ? pend.map(e => `<div class="req"><div><span class="when">${ago(e.ts)} ago · needs <b>${esc(e.key)}</b></span></div><code>${esc(e.cmd)}</code></div>`).join("") : '<div class="empty">Nothing waiting.</div>';
+    // feed
+    $("#feed").innerHTML = l.slice(0, 40).map(e => `<li><span class="t">${ago(e.ts)}</span><span><span class="lv ${e.kind === "ALLOW" ? "OK" : e.level || "S"}">${e.kind === "ALLOW" ? "OK" : e.level || e.kind}</span>${e.what ? esc(e.what) + " — " : ""}<code>${esc(e.cmd).slice(0, 140)}</code></span></li>`).join("") || '<li class="empty">No guard decisions yet — install the policy guard (setup\\02).</li>';
+    // cron
+    $("#sched-meta").textContent = `${j.length} job${j.length === 1 ? "" : "s"}`;
+    $("#jobs").innerHTML = j.length ? j.map(x => `<li class="job"><b>${esc(x.name)}</b><button class="run" data-run="${esc(x.name)}">Run</button><span class="sch">${esc(x.schedule || "")}${x.next_run ? " · next " + esc(String(x.next_run).replace("T", " ").slice(0, 16)) : ""}${x.enabled === false ? " · paused" : ""}</span></li>`).join("") : '<li class="empty">No scheduled jobs yet. Run <code>setup\\03-cron-jobs.ps1</code> to add the morning brief, trend hunter and PR shepherd.</li>';
+  } catch (e) { $("#sys-meta").textContent = "offline"; }
+}
+document.addEventListener("click", async (e) => {
+  const k = e.target.closest("[data-key]"); if (k) { const key = k.dataset.key; const standing = $("#standing").checked; if (!confirm(standing ? `STANDING approval for “${key}”: Jarvis may do this without asking until you revoke it (e.g. the 09:00 post). Continue?` : `Issue a 30-minute single-use approval ticket for “${key}”?`)) return; await api.post("/api/approvals", { key, standing }); toast(standing ? `Standing approval: ${key}` : `Ticket issued: ${key}`); refresh(); if (!standing && confirm("Tell Jarvis to retry the blocked action now?")) send(`The owner has issued the "${key}" approval ticket. Retry the blocked command now.`); return; }
+  const rv = e.target.closest("[data-revoke]"); if (rv) { await api.del("/api/approvals/" + rv.dataset.revoke); toast("Revoked"); refresh(); return; }
+  const run = e.target.closest("[data-run]"); if (run) { run.textContent = "…"; const r = await api.post("/api/cron/run", { name: run.dataset.run }); toast(r.ok ? "Queued for next tick" : ("Failed: " + (r.error || r.stderr || "").slice(0, 80))); run.textContent = "Run"; return; }
+  const cl = e.target.closest("[data-close]"); if (cl) { closeDrawers(); return; }
+});
+$("#btn-pause").onclick = async () => { const paused = $("#btn-pause").getAttribute("aria-pressed") === "true"; if (!paused && !confirm("Emergency stop: pause cron, kanban dispatch and new gateway turns?")) return; const r = await api.post(paused ? "/api/resume" : "/api/pause"); toast(r.ok ? (paused ? "Resumed" : "Halted") : "Failed"); refresh(); };
+
+/* ---------------- drawers ---------------- */
+const closeDrawers = () => { document.querySelectorAll(".drawer").forEach(d => d.setAttribute("aria-hidden", "true")); document.querySelectorAll(".head-actions .hbtn:not(.danger)").forEach(b => b.setAttribute("aria-pressed", "false")); };
+const openDrawer = (id, btn) => { const d = $(id); const open = d.getAttribute("aria-hidden") === "false"; closeDrawers(); if (!open) { d.setAttribute("aria-hidden", "false"); btn.setAttribute("aria-pressed", "true"); } return !open; };
+$("#btn-memory").onclick = async (e) => { if (!openDrawer("#dr-memory", e.currentTarget)) return; const m = await api.get("/api/memory"); $("#memory-body").innerHTML = `<div class="sub-h">MEMORY.md</div><pre>${esc(m.memory || "(empty — Jarvis writes here as it learns; seed it with the Phase 2 message)")}</pre><div class="sub-h" style="margin-top:14px">USER.md</div><pre>${esc(m.user || "(empty)")}</pre>`; };
+$("#btn-drafts").onclick = async (e) => { if (!openDrawer("#dr-drafts", e.currentTarget)) return; const c = await api.get("/api/content"); $("#drafts-body").innerHTML = c.length ? c.map(d => `<div class="draft"><b>${esc(d.slug)}</b><span class="st">${esc(d.status || "draft")}</span><p>${esc((d.post || "").slice(0, 900))}</p><div class="sub-h" style="margin-top:8px">${(d.files || []).map(esc).join(" · ")}</div></div>`).join("") : '<div class="empty">No content packages yet. Ask: “Load jarvis-creative-director and draft a LinkedIn post about …”.</div>'; };
+$("#btn-sessions").onclick = async (e) => { if (!openDrawer("#dr-sessions", e.currentTarget)) return; const s = await api.get("/api/sessions"); $("#sessions-body").innerHTML = s.length ? s.map(x => `<div class="sess"><b>${esc(x.title || x.last_activity || x.id)}</b><span class="m">${esc(x.source || "")}</span><span class="m">${esc(x.model || "")} · ${x.messages ?? 0} msgs · ${x.tool_calls ?? 0} tools${x.cost_usd ? " · $" + Number(x.cost_usd).toFixed(3) : ""}</span><span class="m">${esc(fmtTs(x.last_activity_at || x.started_at))}</span></div>`).join("") : '<div class="empty">No sessions.</div>'; };
+addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawers(); if (e.key === "/" && document.activeElement !== $("#input")) { e.preventDefault(); $("#input").focus(); } });
+
+refresh(); setInterval(refresh, 6000);
+synth?.addEventListener?.("voiceschanged", () => { });
+})();
+</script>

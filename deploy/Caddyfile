@@ -1,0 +1,72 @@
+# Caddy edge for the Jarvis API.
+#
+# Terminates TLS (automatic Let's Encrypt certs), rate-limits, strips hop-by-hop headers, and
+# proxies to the Hermes API server. Caddy is the ONLY thing on the public network.
+#
+# Two surfaces are deliberately separated:
+#   /health      public, unauthenticated liveness probe (no secrets, cheap)
+#   everything   proxied to Hermes, which enforces its own bearer auth (API_SERVER_KEY)
+#
+# Auth note: Hermes already requires `Authorization: Bearer <API_SERVER_KEY>` on every route except
+# /health. Caddy does not re-check it — one source of truth avoids the two drifting apart.
+
+{
+	email {$ACME_EMAIL}
+	# Uncomment while testing so you don't burn Let's Encrypt rate limits:
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+	servers {
+		timeouts {
+			# Agent turns are long. Do not let the edge cut a run short.
+			read_body 5m
+			read_header 30s
+			write 30m
+			idle 30m
+		}
+	}
+}
+
+{$JARVIS_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	# Cheap public liveness probe for your load balancer / uptime monitor.
+	handle /health {
+		reverse_proxy gateway:8642
+	}
+
+	# Everything else: Hermes enforces bearer auth itself.
+	handle {
+		reverse_proxy gateway:8642 {
+			# SSE must not be buffered or the client sees nothing until the run ends.
+			flush_interval -1
+			transport http {
+				read_timeout 30m
+				write_timeout 30m
+				# Agent runs idle while the model thinks; don't reap the upstream connection.
+				dial_timeout 10s
+			}
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	log {
+		output stdout
+		format json
+		# Never log the bearer token.
+		format filter {
+			wrap json
+			fields {
+				request>headers>Authorization delete
+				request>headers>Cookie delete
+			}
+		}
+	}
+}

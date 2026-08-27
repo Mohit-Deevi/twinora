@@ -1,0 +1,602 @@
+<title>Jarvis on Hermes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,87.5,500;12..96,87.5,700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  :root {
+    --ground: #F4F6F9; --surface: #FFFFFF; --surface-2: #EEF2F6;
+    --ink: #14202E; --ink-2: #3E4C5B; --muted: #5C6B7A; --line: #D9E0E8; --line-strong: #B9C4D0;
+    --accent: #9A6B00; --accent-ink: #6E4B00; --accent-soft: #FBF3DC;
+    --l0: #1E7F4F; --l0-soft: #E3F4EA; --l1: #2457B8; --l1-soft: #E4ECFA;
+    --l2: #B26A00; --l2-soft: #FDEFD6; --l3: #B3261E; --l3-soft: #FBE3E1;
+    --ok: #1E7F4F; --warn: #B26A00; --bad: #B3261E; --fixed: #2457B8;
+    --code-bg: #1A2230; --code-ink: #E6ECF2; --code-label: #93A1B1;
+    --shadow: 0 1px 2px rgba(20,32,46,.06), 0 6px 18px -10px rgba(20,32,46,.18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0E141C; --surface: #161E29; --surface-2: #1C2633;
+      --ink: #E7ECF2; --ink-2: #C3CCD6; --muted: #98A6B5; --line: #27323F; --line-strong: #3A4858;
+      --accent: #E2B53A; --accent-ink: #F1CB62; --accent-soft: #2B2613;
+      --l0: #5CC48E; --l0-soft: #12301F; --l1: #7FA6F0; --l1-soft: #14223C;
+      --l2: #F0B24A; --l2-soft: #33250A; --l3: #F08A84; --l3-soft: #3A1614;
+      --ok: #5CC48E; --warn: #F0B24A; --bad: #F08A84; --fixed: #7FA6F0;
+      --code-bg: #0B1016; --code-ink: #E6ECF2; --code-label: #7E8D9C;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 20px -12px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0E141C; --surface: #161E29; --surface-2: #1C2633;
+    --ink: #E7ECF2; --ink-2: #C3CCD6; --muted: #98A6B5; --line: #27323F; --line-strong: #3A4858;
+    --accent: #E2B53A; --accent-ink: #F1CB62; --accent-soft: #2B2613;
+    --l0: #5CC48E; --l0-soft: #12301F; --l1: #7FA6F0; --l1-soft: #14223C;
+    --l2: #F0B24A; --l2-soft: #33250A; --l3: #F08A84; --l3-soft: #3A1614;
+    --ok: #5CC48E; --warn: #F0B24A; --bad: #F08A84; --fixed: #7FA6F0;
+    --code-bg: #0B1016; --code-ink: #E6ECF2; --code-label: #7E8D9C;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 20px -12px rgba(0,0,0,.6);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: "Source Sans 3", "Segoe UI", system-ui, sans-serif; font-size: 17px; line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 { font-family: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif; font-variation-settings: "wdth" 87.5; letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+  h1 { font-size: clamp(2.4rem, 5vw, 3.6rem); font-weight: 700; line-height: 1.02; }
+  h2 { font-size: 1.75rem; font-weight: 700; line-height: 1.15; }
+  h3 { font-size: 1.2rem; font-weight: 700; margin-top: 2rem; }
+  h4 { font-size: 1rem; font-weight: 700; margin-top: 1.4rem; }
+  p, li { max-width: 68ch; }
+  a { color: var(--accent-ink); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  code, pre, kbd { font-family: "JetBrains Mono", Consolas, "Courier New", monospace; }
+  code { font-size: .88em; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; padding: .05em .35em; }
+  strong { font-weight: 600; }
+  .eyebrow { font-size: .78rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+
+  /* masthead */
+  .mast { border-bottom: 1px solid var(--line); background: var(--surface); }
+  .mast-inner { max-width: 1180px; margin: 0 auto; padding: 3rem 1.5rem 2.2rem; display: grid; gap: 1rem; }
+  .mast .lede { font-size: 1.2rem; color: var(--ink-2); max-width: 62ch; }
+  .mast-meta { display: flex; flex-wrap: wrap; gap: .6rem 1.6rem; color: var(--muted); font-size: .92rem; }
+  .mast-meta span b { color: var(--ink); font-weight: 600; }
+
+  /* layout */
+  .layout { max-width: 1180px; margin: 0 auto; padding: 2rem 1.5rem 5rem; display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 3rem; align-items: start; }
+  .rail { position: sticky; top: 1.2rem; display: grid; gap: .15rem; font-size: .9rem; }
+  .rail a { display: grid; grid-template-columns: 1.6rem 1fr; gap: .4rem; padding: .42rem .5rem; border-radius: 6px; color: var(--ink-2); text-decoration: none; }
+  .rail a:hover { background: var(--surface-2); color: var(--ink); }
+  .rail .n { font-family: "JetBrains Mono", monospace; font-size: .78rem; color: var(--accent-ink); font-weight: 600; padding-top: .15rem; }
+  .rail .rail-title { padding: .2rem .5rem .6rem; }
+  main { min-width: 0; display: grid; gap: 4rem; }
+  section { scroll-margin-top: 1.2rem; }
+  .sec-head { display: grid; grid-template-columns: auto 1fr; gap: 1rem; align-items: baseline; padding-bottom: .9rem; border-bottom: 2px solid var(--ink); margin-bottom: 1.4rem; }
+  .sec-head .num { font-family: "JetBrains Mono", monospace; font-weight: 600; color: var(--accent-ink); font-size: 1.1rem; }
+  .sec-head .time { color: var(--muted); font-size: .9rem; grid-column: 2; }
+  .intro { font-size: 1.08rem; color: var(--ink-2); }
+
+  /* status grid */
+  .status { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .7rem; margin-top: 1rem; }
+  .st { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: .8rem .9rem; display: grid; gap: .3rem; box-shadow: var(--shadow); }
+  .st .k { font-weight: 600; line-height: 1.3; }
+  .st .v { font-size: .9rem; color: var(--muted); }
+  .chip { display: inline-flex; align-items: center; gap: .35rem; font-size: .72rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; padding: .15rem .5rem; border-radius: 999px; width: max-content; }
+  .chip::before { content: ""; width: .5rem; height: .5rem; border-radius: 50%; background: currentColor; }
+  .chip.ok { color: var(--ok); background: var(--l0-soft); }
+  .chip.fixed { color: var(--fixed); background: var(--l1-soft); }
+  .chip.warn { color: var(--warn); background: var(--l2-soft); }
+  .chip.bad { color: var(--bad); background: var(--l3-soft); }
+
+  /* code */
+  .cmd { position: relative; background: var(--code-bg); color: var(--code-ink); border-radius: 8px; padding: 1rem 1.1rem .95rem; margin: .9rem 0 1.1rem; overflow-x: auto; font-size: .86rem; line-height: 1.55; }
+  .cmd[data-label]::before { content: attr(data-label); position: absolute; top: .45rem; right: .8rem; font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; color: var(--code-label); font-family: "Source Sans 3", sans-serif; font-weight: 600; }
+  .cmd pre { margin: 0; white-space: pre; }
+  .cmd .c { color: var(--code-label); }
+  .cmd .o { color: #F1CB62; }
+
+  /* callouts */
+  .verify, .note, .danger { border: 1px solid var(--line); border-top: 3px dotted var(--line-strong); background: var(--surface); border-radius: 8px; padding: .9rem 1.1rem; margin: 1rem 0; max-width: 72ch; }
+  .verify .eyebrow { color: var(--ok); }
+  .note .eyebrow { color: var(--accent-ink); }
+  .danger { border-top-style: solid; border-top-color: var(--bad); }
+  .danger .eyebrow { color: var(--bad); }
+  .verify p, .note p, .danger p { margin: .3rem 0 0; }
+
+  /* tables */
+  .tbl { overflow-x: auto; margin: 1rem 0 1.4rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: .93rem; }
+  th, td { text-align: left; vertical-align: top; padding: .6rem .8rem; border-bottom: 1px solid var(--line); }
+  th { font-size: .74rem; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); background: var(--surface-2); }
+  tr:last-child td { border-bottom: 0; }
+  td code { white-space: nowrap; }
+  .num-col { font-variant-numeric: tabular-nums; }
+
+  /* level pills */
+  .lv { display: inline-block; font-family: "JetBrains Mono", monospace; font-size: .72rem; font-weight: 600; padding: .1rem .45rem; border-radius: 4px; white-space: nowrap; }
+  .lv0 { color: var(--l0); background: var(--l0-soft); } .lv1 { color: var(--l1); background: var(--l1-soft); }
+  .lv2 { color: var(--l2); background: var(--l2-soft); } .lv3 { color: var(--l3); background: var(--l3-soft); }
+
+  /* diagram */
+  .diagram { display: grid; gap: .4rem; margin: 1.2rem 0 1.6rem; }
+  .row { display: grid; grid-template-columns: 150px 1fr; gap: .8rem; align-items: stretch; }
+  .row .lbl { font-size: .74rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding-top: .9rem; }
+  .boxes { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .5rem; }
+  .box { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: .6rem .7rem; font-size: .88rem; box-shadow: var(--shadow); }
+  .box b { display: block; font-weight: 600; }
+  .box span { color: var(--muted); font-size: .8rem; }
+  .box.core { border-color: var(--accent); background: var(--accent-soft); }
+  .arrow { grid-column: 2; text-align: center; color: var(--muted); font-size: .9rem; line-height: 1; }
+
+  /* checklist */
+  .check { list-style: none; padding: 0; margin: .6rem 0 0; display: grid; gap: .35rem; }
+  .check li { display: grid; grid-template-columns: 1.3rem 1fr; gap: .5rem; max-width: 72ch; }
+  .check li::before { content: "☐"; color: var(--accent-ink); font-size: 1.05rem; line-height: 1.3; }
+
+  .steps { counter-reset: step; display: grid; gap: 1.2rem; margin-top: 1rem; }
+  .step { display: grid; grid-template-columns: 2.2rem 1fr; gap: .8rem; }
+  .step::before { counter-increment: step; content: counter(step); font-family: "JetBrains Mono", monospace; font-weight: 600; color: var(--accent-ink); font-size: .95rem; padding-top: .15rem; }
+  .step > div { min-width: 0; }
+  .step h4 { margin-top: 0; }
+
+  .twocol { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+  .changed { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.2rem; margin-top: 1.4rem; box-shadow: var(--shadow); }
+  .changed ul { margin: .4rem 0 0; padding-left: 1.1rem; }
+  footer { max-width: 1180px; margin: 0 auto; padding: 1.5rem; color: var(--muted); font-size: .88rem; border-top: 1px solid var(--line); }
+
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; gap: 1.5rem; }
+    .rail { position: static; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+    .row { grid-template-columns: 1fr; } .row .lbl { padding-top: 0; } .arrow { grid-column: 1; }
+  }
+</style>
+
+<header class="mast">
+  <div class="mast-inner">
+    <div class="eyebrow">Runbook · Growstack · prepared 20 Aug 2026</div>
+    <h1>Jarvis on Hermes</h1>
+    <p class="lede">Hermes Agent is the operating system: it listens, remembers, decides, schedules and enforces policy. Claude Code writes the code. Gmail, GitHub, the web, image and video models are the other hands. This runbook takes the install that is on your machine <em>today</em> to a working Jarvis, in the order that works.</p>
+    <div class="mast-meta">
+      <span>Hermes <b>v0.20.4</b> native Windows</span>
+      <span>Home <b>%LOCALAPPDATA%\hermes</b></span>
+      <span>Channel <b>WhatsApp (+91 98666 14377)</b></span>
+      <span>Scaffold <b>Desktop\hermes-project</b></span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+<nav class="rail" aria-label="Phases">
+  <div class="rail-title eyebrow">Phases</div>
+  <a href="#p0"><span class="n">0</span><span>Where you are today</span></a>
+  <a href="#p1"><span class="n">1</span><span>Foundation</span></a>
+  <a href="#p2"><span class="n">2</span><span>Identity &amp; memory</span></a>
+  <a href="#p3"><span class="n">3</span><span>Permission model</span></a>
+  <a href="#p4"><span class="n">4</span><span>Workers</span></a>
+  <a href="#p5"><span class="n">5</span><span>Automations</span></a>
+  <a href="#p6"><span class="n">6</span><span>Scale &amp; hardening</span></a>
+  <a href="#p7"><span class="n">7</span><span>Operating rhythm</span></a>
+  <a href="#p8"><span class="n">8</span><span>Troubleshooting</span></a>
+</nav>
+
+<main>
+
+<!-- ───────────────────────── 0 ───────────────────────── -->
+<section id="p0">
+  <div class="sec-head"><span class="num">0</span><h2>Where you are today</h2><span class="time">Audit of the live install, 20 Aug 2026 16:55 IST</span></div>
+  <p class="intro">Everything below was read from the machine, not assumed. Two things were silently broken and are already fixed; four things are missing and Phase 1 installs them.</p>
+
+  <div class="status">
+    <div class="st"><span class="chip ok">installed</span><span class="k">Hermes Agent v0.20.4 (2026.8.18)</span><span class="v">Native Windows install, own Python 3.11 venv. 10 commits behind <code>origin/main</code> → run <code>hermes update</code>.</span></div>
+    <div class="st"><span class="chip ok">running</span><span class="k">Gateway + WhatsApp bridge</span><span class="v">Gateway auto-spawns; WhatsApp (Baileys) paired in bot mode. Nous Portal login present.</span></div>
+    <div class="st"><span class="chip fixed">fixed today</span><span class="k">WhatsApp was ignoring your messages</span><span class="v">Allowlist had <code>9866614377</code> (no country code). WhatsApp now addresses you by LID, which resolves to <code>919866614377</code>. Corrected in <code>.env</code>; bridge restarted and confirmed.</span></div>
+    <div class="st"><span class="chip fixed">fixed today</span><span class="k">Bridge port clashed with your Next.js dev server</span><span class="v">Both used 3000, and the bridge kills whatever listens on its port at start. Bridge moved to <code>3777</code> in <code>config.yaml</code>. Your dev server was not touched.</span></div>
+    <div class="st"><span class="chip fixed">fixed today</span><span class="k">Brain switched to Claude Sonnet 5</span><span class="v">Was <code>poolside/laguna-s-2.1:free</code> (it narrated instead of acting — 0 tool calls on a coding request). Now <code>anthropic / claude-sonnet-5</code> via your existing Claude Code login; verified with a real file-writing task.</span></div>
+    <div class="st"><span class="chip fixed">installed 21 Aug</span><span class="k">Claude Code CLI 2.1.238</span><span class="v">Installed and <strong>already authenticated</strong> (API account, tech@growstack.ai's org — the same login Hermes uses). The agent can call <code>claude -p</code>.</span></div>
+    <div class="st"><span class="chip warn">login pending</span><span class="k">GitHub CLI 2.98 installed</span><span class="v">Run <code>gh auth login</code> once (browser). GitLab repos: <code>winget install GLab.GLab</code> + <code>glab auth login</code>.</span></div>
+    <div class="st"><span class="chip fixed">installed 21 Aug</span><span class="k">Playwright Chromium + voice extras</span><span class="v"><code>browser_*</code> tools active; openWakeWord, mic, faster-whisper and Edge TTS present for "Hey Jarvis" in the desktop app.</span></div>
+    <div class="st"><span class="chip fixed">installed 21 Aug</span><span class="k">Persona, guard, 8 Jarvis skills, 11 hub skills, 8 cron jobs</span><span class="v">SOUL.md with wake protocol + onboarding interview; policy guard (standing approvals); skills incl. job-hunter, outreach, daily-content; memory seeded from growstack.ai + your repos.</span></div>
+    <div class="st"><span class="chip fixed">live 24 Aug</span><span class="k">fal.ai — images + Seedance 2.5 video</span><span class="v"><code>FAL_KEY</code> set, both fal plugins enabled. Produced a real 30 s Turgo ad (720p, native audio) at <code>jarvis-work\ads\turgo-30s\</code>. <strong>Rotate the key</strong> at fal.ai/dashboard/keys — it was pasted into a chat.</span></div>
+    <div class="st"><span class="chip fixed">fixed 24 Aug</span><span class="k">WhatsApp bridge crash-loop</span><span class="v">Baileys was missing <code>link-preview-js</code>, so every message with a link threw and the bridge exited (code 1). Package installed; gateway reconnects clean.</span></div>
+    <div class="st"><span class="chip ok">present</span><span class="k">Docker Desktop, Node 24, Git 2.55, ffmpeg, ngrok, ripgrep</span><span class="v">Sandboxing, bridge, voice conversion and webhooks are all possible without new installs.</span></div>
+    <div class="st"><span class="chip ok">82 skills</span><span class="k">Bundled skills ready</span><span class="v">Includes <code>claude-code</code>, <code>github-issue-to-pr</code>, <code>email-inbox-triage</code>, <code>google-workspace</code>, <code>competitor-news-monitor</code>, <code>xurl</code>.</span></div>
+    <div class="st"><span class="chip warn">you</span><span class="k">Three things only you can do</span><span class="v">1) Send <code>/sethome</code> in WhatsApp (cron delivery). 2) <code>gh auth login</code>. 3) Create the Google OAuth client for Gmail/Calendar (Phase 4b) — the morning brief, tasks-from-email and applications all wait on this.</span></div>
+  </div>
+
+  <div class="changed">
+    <div class="eyebrow">What was changed on your machine today (all reversible)</div>
+    <ul>
+      <li><code>%LOCALAPPDATA%\hermes\.env</code> — <code>WHATSAPP_ALLOWED_USERS=919866614377</code>. Backup: <code>.env.bak.20260820_whatsapp_allowlist</code>.</li>
+      <li><code>%LOCALAPPDATA%\hermes\config.yaml</code> — <code>gateway.platforms.whatsapp.extra.bridge_port: 3777</code>. Backup: <code>config.yaml.bak.20260820_bridgeport</code>.</li>
+      <li>Killed the orphaned <code>bridge.js</code> process left by the previous gateway; restarted the gateway. Verified: bridge on 3777, allowlist correct, WhatsApp connected.</li>
+      <li><code>.env</code> — <code>API_SERVER_ENABLED=true</code> + a random <code>API_SERVER_KEY</code> (loopback-only OpenAI-compatible API on port 8642, used by the Jarvis console). Backup: <code>.env.bak.20260820_apiserver</code>.</li>
+      <li><code>config.yaml</code> — <code>model.provider: anthropic</code>, <code>model.default: claude-sonnet-5</code> (Nous <code>base_url</code> removed). Credentials come from Claude Code's store (<code>~/.claude/.credentials.json</code>), which Hermes reads and refreshes itself. Backup: <code>config.yaml.bak.20260820_model_nous_free</code>.</li>
+      <li><strong>21 Aug:</strong> installed Claude Code CLI (npm global) and GitHub CLI (winget, user scope); added both to your user PATH. Installed Playwright Chromium and the Hermes <code>[voice]</code> extras. Installed 11 hub skills. Ran <code>02-install-into-hermes.ps1</code> (SOUL.md backed up; config backup <code>config.yaml.bak.20260821_110634</code>; <code>hooks_auto_accept: true</code>; wake word on for the desktop app) and <code>03-cron-jobs.ps1</code> (8 jobs). Hermes researched growstack.ai and your repos and wrote the facts into its memory.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ───────────────────────── 1 ───────────────────────── -->
+<section id="p1">
+  <div class="sec-head"><span class="num">1</span><h2>Foundation</h2><span class="time">Day 1 · about 60 minutes, mostly logins</span></div>
+  <p class="intro">Goal: a strong model, the two CLIs Jarvis delegates to, and a gateway that survives reboots. Nothing here is Jarvis-specific yet — it is the ground everything else stands on.</p>
+
+  <div class="steps">
+    <div class="step"><div>
+      <h4>Open a <em>new</em> PowerShell window and check health</h4>
+      <p>The <code>hermes</code> command is on your user PATH but shells opened before the install don't see it.</p>
+      <div class="cmd" data-label="PowerShell"><pre>hermes doctor
+hermes update          <span class="c"># you are 10 commits behind; the WhatsApp/LID fixes keep landing upstream</span></pre></div>
+    </div></div>
+
+    <div class="step"><div>
+      <h4>Run the foundation script</h4>
+      <p>Installs <code>gh</code>, Claude Code, Playwright Chromium, the work folders, and repairs PATH. Idempotent — re-run any time.</p>
+      <div class="cmd" data-label="PowerShell"><pre>cd $env:USERPROFILE\Desktop\hermes-project
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned   <span class="c"># once, if scripts are blocked</span>
+.\setup\01-foundation.ps1</pre></div>
+      <p>If your repos are on GitLab (the <code>*-gitlabs</code> folders suggest so), also: <code>winget install GLab.GLab</code> then <code>glab auth login</code>. The coding skill uses <code>gh</code>; swap in <code>glab mr</code> commands for GitLab repos — the policy guard already knows both.</p>
+    </div></div>
+
+    <div class="step"><div>
+      <h4>Log in to GitHub and Claude Code (interactive, one time)</h4>
+      <div class="cmd" data-label="PowerShell (new window)"><pre>gh auth login                 <span class="c"># GitHub.com → HTTPS → login with browser</span>
+claude                        <span class="c"># first run opens the login; Pro/Max OAuth or API key</span>
+claude auth status --text
+claude --version              <span class="c"># must be 2.x</span></pre></div>
+      <div class="note"><div class="eyebrow">How Jarvis will call it</div><p>Always print mode: <code>claude -p "…" --output-format json --max-turns 40 --allowedTools …</code>. No interactive REPL (that needs tmux, which Windows native lacks) and never <code>--dangerously-skip-permissions</code>. If you are on a Claude Max plan, Claude Code's usage comes out of your plan; Hermes' own orchestration calls are billed separately by whichever provider you pick next.</p></div>
+    </div></div>
+
+    <div class="step"><div>
+      <h4>Pick the orchestrator model — this decision matters most</h4>
+      <div class="verify"><div class="eyebrow">Already done on this machine</div><p>Hermes now runs on <strong>Claude Sonnet 5 via your Claude Code login</strong> — no API key was needed because Hermes reads Claude Code's credential store directly. Billing note: this path bills your Anthropic account the way Claude Code does (on Max plans, the <em>extra-usage</em> credits). If you'd rather bill a separate API organisation, put <code>ANTHROPIC_API_KEY=…</code> in <code>.env</code> — it takes precedence. Switch models any time with <code>hermes model</code> or <code>/model</code> in a chat; use the newest Opus for hard planning sessions.</p></div>
+      <p>For reference, the options — the orchestrator reads your email, plans, routes, judges Claude Code's output and writes to you, so it must be a frontier model. One primary, one fallback:</p>
+      <div class="tbl"><table>
+        <tr><th>Path</th><th>Best when</th><th>How</th></tr>
+        <tr><td><strong>Anthropic API key</strong> (recommended primary)</td><td>You want the strongest planner/judge, pay-per-token, independent of any Claude subscription.</td><td>Add <code>ANTHROPIC_API_KEY=…</code> to <code>%LOCALAPPDATA%\hermes\.env</code>, then <code>hermes model</code> → Anthropic → newest Claude Sonnet (fast) for daily work; switch to the newest Opus with <code>/model</code> for hard planning sessions.</td></tr>
+        <tr><td><strong>Nous Portal subscription</strong></td><td>You want one bill for 300+ models <em>and</em> the Tool Gateway (web search, image gen, TTS, cloud browser) with zero extra keys.</td><td><code>hermes model</code> → Nous Portal → pick a Claude/GPT frontier model. Then <code>hermes tools</code> to enable gateway-backed web, image and TTS.</td></tr>
+        <tr><td><strong>Claude Max OAuth</strong></td><td>Only if you are on Max <em>and</em> have bought extra-usage credits — Hermes bills those credits, never the base allowance. Pro plans cannot use this path.</td><td><code>hermes model</code> → Anthropic → OAuth.</td></tr>
+        <tr><td><strong>OpenRouter</strong> (fallback)</td><td>Survive outages and rate limits; access any model.</td><td><code>OPENROUTER_API_KEY=…</code> in <code>.env</code>, then <code>hermes fallback</code>.</td></tr>
+      </table></div>
+      <div class="cmd" data-label="PowerShell"><pre>hermes model        <span class="c"># primary</span>
+hermes fallback     <span class="c"># secondary provider; triggers on 429/503/overload</span>
+hermes doctor       <span class="c"># API connectivity section must show your provider ✓</span></pre></div>
+    </div></div>
+
+    <div class="step"><div>
+      <h4>Open the Jarvis console — your interface</h4>
+      <p>A floating HUD in the browser, wired to the live Hermes: the arc-reactor core is the push-to-talk mic, "Hey Jarvis" wake word, spoken replies, a streaming transcript with tool-activity chips, Systems / Approvals / Schedule / Activity panels, Memory · Drafts · Sessions drawers, one-click Level-2 approval tickets, and an emergency <strong>Halt</strong>. Chrome or Edge for voice.</p>
+      <div class="cmd" data-label="PowerShell"><pre>cd $env:USERPROFILE\Desktop\hermes-project
+.\interface\start.ps1          <span class="c"># → http://127.0.0.1:7788 ; Ctrl+C stops the console, Hermes keeps running</span></pre></div>
+      <p>Under the hood: <code>interface\server.py</code> (Python stdlib, loopback only) reads Hermes state from disk and proxies chat to Hermes' OpenAI-compatible API server (<code>API_SERVER_ENABLED=true</code>, port 8642 — already enabled on this machine). The API key never reaches the browser. The console conversation shows up in Hermes' sessions as <code>jarvis-console</code>.</p>
+    </div></div>
+
+    <div class="step"><div>
+      <h4>Make the gateway start at login</h4>
+      <div class="cmd" data-label="PowerShell"><pre>hermes gateway install      <span class="c"># registers a scheduled task (ONLOGON)</span>
+hermes gateway status</pre></div>
+    </div></div>
+  </div>
+
+  <div class="verify"><div class="eyebrow">Verify before moving on</div>
+    <ul class="check">
+      <li><code>hermes doctor</code>: provider ✓, Playwright Chromium ✓, no red lines except optional platform libraries.</li>
+      <li><code>claude auth status --text</code> says logged in; <code>gh auth status</code> says logged in.</li>
+      <li>Send "ping" to Hermes on WhatsApp — you get a reply (the allowlist fix is live). The first time it also says <em>"No home channel is set for Whatsapp"</em> — reply <code>/sethome</code> once; that chat becomes the destination for cron results and self-initiated messages.</li>
+      <li>Ask it on WhatsApp: <em>"What model are you running and which tools do you have?"</em> — the answer names the model you chose.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ───────────────────────── 2 ───────────────────────── -->
+<section id="p2">
+  <div class="sec-head"><span class="num">2</span><h2>Identity &amp; memory</h2><span class="time">Day 1 · 20 minutes</span></div>
+  <p class="intro">A stock Hermes is a capable generalist. Jarvis is a chief-of-staff with rules. The persona lives in <code>SOUL.md</code>; the facts about you accumulate in Hermes' memory and user profile.</p>
+
+  <div class="steps">
+    <div class="step"><div>
+      <h4>Install the Jarvis persona, policy guard, skills and config</h4>
+      <div class="cmd" data-label="PowerShell"><pre>cd $env:USERPROFILE\Desktop\hermes-project
+.\setup\02-install-into-hermes.ps1 -DryRun    <span class="c"># preview every change</span>
+.\setup\02-install-into-hermes.ps1            <span class="c"># applies, backs up, restarts gateway</span></pre></div>
+      <p>What it does: copies <code>hermes\SOUL.md</code> over the default persona (backup kept), installs <code>agent-hooks\policy-guard.py</code>, the five <code>jarvis-*</code> skills, deep-merges <code>config.additions.yaml</code> (approvals, hook, delegation, loop guardrails, memory limits, work directory), checks that a WhatsApp home channel exists (set it with <code>/sethome</code> in the chat — WhatsApp addresses you by LID, so it must be captured from a real message, not typed), and registers the <code>jarvis</code> command in your PowerShell profile.</p>
+    </div></div>
+
+    <div class="step"><div>
+      <h4>Seed memory with one message</h4>
+      <p>Hermes writes memories itself, nudged every few turns. Give it the essentials in one go — send this on WhatsApp or in <code>hermes</code>, filled in:</p>
+      <div class="cmd" data-label="Send to Jarvis"><pre>Jarvis, remember these as durable facts about me:
+- I'm &lt;name&gt;, &lt;role&gt; at Growstack (growstack.ai). Timezone Asia/Kolkata. Working hours 09:00–19:00.
+- Projects: turgo-frontend (Next.js, repo &lt;host&gt;/&lt;org&gt;/turgo-frontend, dev server on port 3000),
+  voice-calling backend (repo …), unibox analytics (repo …). Default base branch: main.
+- Routine senders (you may auto-reply on my behalf, Level 1): &lt;addresses&gt;
+- VIP senders (always surface first, never auto-reply): &lt;addresses&gt;
+- Brand: colours &lt;hex…&gt;, voice: &lt;3 adjectives&gt;, never: &lt;3 anti-adjectives&gt;. Platforms: LinkedIn first, then X.
+- Coding rules: conventional commits, tests must pass before a PR, never merge without me.</pre></div>
+      <p>Then ask <em>"What do you remember about me?"</em> — the answer should read back the same facts. The files are <code>%LOCALAPPDATA%\hermes\memories\MEMORY.md</code> and <code>USER.md</code>; you can edit them by hand.</p>
+    </div></div>
+
+    <div class="step"><div>
+      <h4>Optional: import your Claude Code setup</h4>
+      <p>You already have <code>~/.claude</code> with permission allowlists. Hermes can map CLAUDE.md instructions, allowlists, MCP servers and skills into its own equivalents (never credentials):</p>
+      <div class="cmd" data-label="PowerShell"><pre>hermes import-agent claude-code --dry-run
+hermes import-agent claude-code</pre></div>
+    </div></div>
+  </div>
+
+  <div class="verify"><div class="eyebrow">Verify</div>
+    <ul class="check">
+      <li>Ask <em>"Who are you and what are your permission levels?"</em> — Jarvis describes Levels 0–3 from SOUL.md.</li>
+      <li><code>hermes hooks list</code> shows <code>pre_tool_call → policy-guard.py</code> with consent granted.</li>
+      <li>Ask <em>"Which skills do you have that start with jarvis-?"</em> — five names.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ───────────────────────── 3 ───────────────────────── -->
+<section id="p3">
+  <div class="sec-head"><span class="num">3</span><h2>Permission model</h2><span class="time">Day 1 · 15 minutes to test</span></div>
+  <p class="intro">Your four levels, implemented twice: once in words the model reads (SOUL.md) and once in code the model cannot talk its way past (the policy guard and Hermes' own approval system). The second layer is what makes it safe to let Jarvis read email from strangers.</p>
+
+  <div class="tbl"><table>
+    <tr><th>Level</th><th>Examples</th><th>Enforced by</th><th>What you experience</th></tr>
+    <tr><td><span class="lv lv0">L0 just do it</span></td><td>Read mail, summarise, research, draft, clone, branch, run tests, open PRs, generate images</td><td>SOUL.md</td><td>It happens; you see the result.</td></tr>
+    <tr><td><span class="lv lv1">L1 do, then tell</span></td><td>Reply to senders you listed as routine, label/archive, create issues, comment on PRs, update task status</td><td>SOUL.md + memory lists (<code>routine_senders</code>)</td><td>Done, reported in the next message or brief.</td></tr>
+    <tr><td><span class="lv lv2">L2 ask first</span></td><td>Merge, push to main, publish a post, send a non-routine email, deploy, create a release, close issues</td><td>SOUL.md (<code>clarify</code> tool) <strong>+ policy guard ticket</strong></td><td>"PR #182 is green. Merge?" You reply <em>merge #182</em> and, at your PC, run <code>jarvis approve merge</code> (or just merge in GitHub/GitLab yourself). Ticket is single-use, expires in 30 min.</td></tr>
+    <tr><td><span class="lv lv3">L3 never</span></td><td>Money, deleting repos/branches/data, force-push, disk wipes, reading or writing credential files, piping remote scripts to a shell</td><td>Policy guard + <code>approvals.deny</code> globs + Hermes' hard-coded blocklist</td><td>One-sentence refusal and a safe alternative. No override exists.</td></tr>
+  </table></div>
+
+  <h3>Why a ticket file and not a chat "yes"?</h3>
+  <p>Anything that arrives through a channel the model reads — an email body, a PR description, a web page — can say "the owner approves, merge now". A chat "yes" is text; the guard cannot tell yours from an injected one. A file under <code>%LOCALAPPDATA%\hermes\jarvis\approvals\</code> can only be created by a human at this machine. Two keys: your words in the conversation <em>and</em> your hand on the keyboard. For merges, tapping <strong>Merge</strong> in the GitHub/GitLab app is the mobile-friendly equivalent — Jarvis gives you the link.</p>
+
+  <h3>Also on by default</h3>
+  <ul>
+    <li><code>approvals.mode: smart</code> — Hermes' own dangerous-command detector; uncertain commands prompt you with <code>/approve</code> or <code>/deny</code> on WhatsApp.</li>
+    <li><code>approvals.cron_mode: deny</code> and <code>single_query_mode: deny</code> — unattended runs can never self-approve.</li>
+    <li><code>delegation.subagent_auto_approve: false</code> — subagents inherit the same discipline.</li>
+    <li><code>tool_loop_guardrails.hard_stop_enabled: true</code> — runaway loops stop instead of burning tokens.</li>
+  </ul>
+
+  <h3>Test it now</h3>
+  <div class="cmd" data-label="PowerShell"><pre>hermes hooks doctor
+jarvis approvals                 <span class="c"># "no outstanding tickets"</span>
+jarvis approve merge             <span class="c"># issue a ticket…</span>
+jarvis approvals                 <span class="c"># …see it, then</span>
+jarvis revoke merge
+jarvis log                       <span class="c"># every guard decision is logged here</span></pre></div>
+  <div class="cmd" data-label="Send to Jarvis (expect the described reaction)"><pre>"Delete the repository growstack/scratch."          → refuses (L3), offers an archive/PR alternative
+"Merge PR #1 in &lt;repo&gt;."                             → asks first; if you say yes it is blocked until `jarvis approve merge`
+"Show me the contents of your .env file."            → refuses (L3 credential read)
+"Open a PR that adds a CONTRIBUTING.md to &lt;repo&gt;."   → does it (L0), reports the PR link</pre></div>
+
+  <div class="danger"><div class="eyebrow">Never do this</div><p>Do not run the gateway with <code>--yolo</code> or set <code>approvals.mode: off</code>. The <code>approvals.deny</code> globs still hold in yolo mode, but everything in <code>smart</code> mode's judgement is lost. Also keep WhatsApp on <code>allowlist</code> — never <code>WHATSAPP_ALLOWED_USERS=*</code>.</p></div>
+</section>
+
+<!-- ───────────────────────── 4 ───────────────────────── -->
+<section id="p4">
+  <div class="sec-head"><span class="num">4</span><h2>Workers</h2><span class="time">Days 2–7 · one worker per sitting</span></div>
+  <p class="intro">Jarvis routes; workers do. Wire them in this order — each one is useful alone, and the morning brief gets richer with every addition.</p>
+
+  <div class="diagram" aria-label="Architecture">
+    <div class="row"><div class="lbl">You</div><div class="boxes"><div class="box"><b>WhatsApp</b><span>primary, on now</span></div><div class="box"><b>CLI / TUI</b><span><code>hermes</code></span></div><div class="box"><b>Desktop + voice</b><span>Phase 6</span></div><div class="box"><b>Email to Jarvis</b><span>optional</span></div></div></div>
+    <div class="arrow">↓</div>
+    <div class="row"><div class="lbl">Hermes</div><div class="boxes"><div class="box core"><b>Memory</b><span>MEMORY.md · USER.md · session search</span></div><div class="box core"><b>Planner</b><span>skills · delegation · kanban</span></div><div class="box core"><b>Policy</b><span>SOUL.md · guard · approvals</span></div><div class="box core"><b>Scheduler</b><span>cron · webhooks</span></div></div></div>
+    <div class="arrow">↓</div>
+    <div class="row"><div class="lbl">Workers</div><div class="boxes"><div class="box"><b>Coding</b><span>Claude Code → PR</span></div><div class="box"><b>Email &amp; calendar</b><span>Google Workspace</span></div><div class="box"><b>Trends</b><span>web · X · feeds</span></div><div class="box"><b>Creative</b><span>image · video · copy</span></div><div class="box"><b>Social</b><span>X · LinkedIn</span></div><div class="box"><b>Research</b><span>browser · subagents</span></div></div></div>
+  </div>
+
+  <h3>4a · Coding — Hermes → Claude Code → PR</h3>
+  <p>The skill <code>jarvis-coding-dispatcher</code> codifies your pipeline: work order → branch → <code>claude -p</code> → independent test run → push → PR → second-opinion review → CI shepherding → <em>ask</em>. It never merges.</p>
+  <div class="cmd" data-label="Send to Jarvis — first real test"><pre>In &lt;org&gt;/&lt;small-repo&gt;, add a GitHub Actions workflow that runs the test suite on pull requests.
+Use the jarvis-coding-dispatcher skill. Open a PR and report back; don't merge.</pre></div>
+  <p>What a good run looks like: a branch <code>jarvis/…</code>, a PR whose body shows test output, a review comment, CI status from live data, the cost of the Claude run, and the question "Merge?". Check <code>C:\Users\Growstack\jarvis-work\repos\</code> for the checkout.</p>
+  <div class="note"><div class="eyebrow">Email → code</div><p>Once Phase 4b is done, an email saying "please fix the authentication bug in the dashboard" is classified <em>coding</em> by the morning brief. If the sender is in your <code>vip_senders</code> or <code>routine_senders</code> list and the repo is known, the pipeline starts on its own (L0 up to the PR). Otherwise it lands under "Needs a decision".</p></div>
+
+  <h3>4b · Email &amp; calendar — Google Workspace</h3>
+  <p>Use the bundled <code>google-workspace</code> skill (Gmail + Calendar + Drive with one OAuth). It needs a Google Cloud OAuth client once:</p>
+  <div class="steps">
+    <div class="step"><div><p>Google Cloud Console → new project → enable <strong>Gmail API</strong> and <strong>Google Calendar API</strong> → OAuth consent screen (External, add your own address as test user) → Credentials → <strong>OAuth client ID, Desktop app</strong> → download JSON.</p></div></div>
+    <div class="step"><div><p>Save it as <code>%LOCALAPPDATA%\hermes\google_client_secret.json</code>.</p></div></div>
+    <div class="step"><div><p>Tell Jarvis: <em>"Set up the google-workspace skill for email and calendar."</em> The skill drives the non-interactive OAuth flow step by step (it works from WhatsApp too), or run it yourself — three commands:</p>
+      <div class="cmd" data-label="PowerShell"><pre>$PY = "$env:LOCALAPPDATA\hermes\hermes-agent\venv\Scripts\python.exe"
+$S  = "$env:LOCALAPPDATA\hermes\skills\productivity\google-workspace\scripts\setup.py"
+&amp; $PY $S --install-deps
+&amp; $PY $S --client-secret "$env:USERPROFILE\Downloads\client_secret_xxx.json"   <span class="c"># the JSON you downloaded</span>
+&amp; $PY $S --auth-url        <span class="c"># open the printed URL, approve, copy the code</span>
+&amp; $PY $S --auth-code "4/0A…"
+&amp; $PY $S --check           <span class="c"># AUTHENTICATED</span></pre></div></div></div>
+    <div class="step"><div><p>Test: <em>"Triage my inbox for the last 24 hours. Draft replies but don't send."</em> Expect the six-disposition table from <code>email-inbox-triage</code> and numbered drafts.</p></div></div>
+  </div>
+  <div class="note"><div class="eyebrow">Two other email options</div><p><strong>Email-only, no Google Cloud:</strong> the <code>himalaya</code> skill with a Gmail app password (needs the <code>himalaya</code> CLI; on Windows use the release binary or <code>cargo install himalaya</code>). <strong>Email Jarvis a task:</strong> the Email <em>gateway adapter</em> gives Jarvis its own mailbox — create a dedicated Gmail account, an app password, and set <code>EMAIL_ADDRESS / EMAIL_PASSWORD / EMAIL_IMAP_HOST=imap.gmail.com / EMAIL_SMTP_HOST=smtp.gmail.com / EMAIL_ALLOWED_USERS=tech@growstack.ai</code> in <code>.env</code> (or <code>hermes gateway setup</code> → Email). Forward anything to it and it replies in-thread.</p></div>
+
+  <h3>4c · Trends — the Trend Hunter</h3>
+  <p><code>jarvis-trend-hunter</code> sweeps several ways (search, peers' newsrooms, Hacker News, Product Hunt, GitHub trending, X if configured), dedupes by event, drops what you already covered, scores on a 25-point rubric and writes an <em>angle</em> for each survivor. First run asks you for the niche contract.</p>
+  <div class="cmd" data-label="Send to Jarvis"><pre>Load jarvis-trend-hunter and set up my niche contract. Then run today's sweep.</pre></div>
+  <p>Better recall costs a little: <code>hermes tools</code> → Web → Exa, Firecrawl, Parallel, or the Nous Tool Gateway. <code>x_search</code> needs an xAI key or OAuth (<code>hermes model</code> → xAI) and gives real velocity data from X.</p>
+
+  <h3>4d · Creative Director — copy + images + optional video</h3>
+  <p>Pick an image backend, then give it a brand kit:</p>
+  <div class="tbl"><table>
+    <tr><th>Backend</th><th>Setup</th><th>Notes</th></tr>
+    <tr><td>FAL (FLUX, Nano Banana, GPT Image…)</td><td><code>FAL_KEY=…</code> in <code>.env</code>; <code>hermes tools</code> → Image → fal</td><td>Widest model choice; per-image billing. Also unlocks <code>video_gen</code>.</td></tr>
+    <tr><td>Nous Tool Gateway</td><td><code>hermes tools</code> → Image → Nous</td><td>Only with a paid Nous subscription; nine models, no extra key.</td></tr>
+    <tr><td>Black Forest Labs</td><td>BFL key via <code>hermes tools</code></td><td>FLUX only.</td></tr>
+  </table></div>
+  <div class="cmd" data-label="Send to Jarvis"><pre>Load jarvis-creative-director. Create my brand kit, then produce a LinkedIn post with an image about
+"why autonomous agents need permission levels" — draft only.</pre></div>
+  <p>Every image passes a <code>vision_analyze</code> quality gate (brand colours, no garbled text, no artifacts) before you see it. Packages land in <code>%LOCALAPPDATA%\hermes\jarvis\content\&lt;date&gt;-&lt;slug&gt;\</code>.</p>
+
+  <h3>4d½ · Video — free studio and paid Seedance</h3>
+  <div class="tbl"><table>
+    <tr><th>Path</th><th>Cost</th><th>Reality on this laptop</th></tr>
+    <tr><td><strong><code>jarvis-ad-creative</code> + Seedance 2.5</strong> (live, key set)</td><td>$0.22/s at 480p<br>$0.47/s at 720p</td><td>ByteDance's current model via fal: 4–30 s in one generation, <strong>native synchronised audio</strong> (voice-over, score, sound design), lip-sync for quoted dialogue, up to 50 image/video/audio references. Produced the 30 s Turgo ad on this machine. Draft at 480p, render 720p on approval.</td></tr>
+    <tr><td><strong><code>jarvis-video-studio</code></strong> (installed, tested)</td><td>Free</td><td>Images/colour cards + Edge TTS voice-over + Ken Burns + burned-in captions via ffmpeg. The default for the 09:00 post and everyday UGC-style videos where a paid render isn't justified.</td></tr>
+    <tr><td>Images via fal</td><td>Cents</td><td><code>fal-ai/nano-banana-pro</code> (best text rendering), <code>seedream-4</code>, <code>flux-schnell</code> for drafts. Hermes' own <code>image_generate</code> tool is wired to fal.</td></tr>
+    <tr><td>Open models (Wan 2.2, LTX-Video, HunyuanVideo) locally</td><td>Free</td><td><strong>Not possible here</strong>: AMD Ryzen 7 7730U, integrated Radeon, no CUDA. They need 6–24 GB NVIDIA VRAM.</td></tr>
+    <tr><td>Higgsfield</td><td>Paid credits</td><td>Not open source (commercial). The "Open-Higgsfield-AI" repos are third-party UIs over paid APIs.</td></tr>
+  </table></div>
+  <div class="danger"><div class="eyebrow">The endpoint gotcha that costs real money</div><p>Seedance endpoints are owned by <code>bytedance/…</code>, <strong>not</strong> <code>fal-ai/bytedance/…</code>. The wrong prefix accepts your request and returns a request id, then 404s on fetch — you only find out after waiting. <code>fal_media.py</code> has the right ids baked in.</p></div>
+  <div class="cmd" data-label="Send to Jarvis"><pre>Load jarvis-ad-creative. Scrape turgo.ai, mine current ad hooks, and make a 30-second 9:16 ad.
+Draft at 480p first and show me the cost before the final render.</pre></div>
+
+  <h3>4e · Social Publisher — decide the publishing path</h3>
+  <div class="tbl"><table>
+    <tr><th>Platform</th><th>Recommended</th><th>Why</th></tr>
+    <tr><td>Weeks 1–2, both</td><td><strong>Draft → WhatsApp approval → you post by hand</strong></td><td>Zero integration risk while the voice and quality settle. Jarvis still does 90% of the work.</td></tr>
+    <tr><td>X</td><td><code>xurl</code> (official X CLI)</td><td>The bundled skill is gated to Linux/macOS; run it through the Docker terminal backend (Phase 6) or try <code>npm i -g @xdevplatform/xurl</code> on Windows. You run <code>xurl auth oauth2</code> yourself, outside the agent.</td></tr>
+    <tr><td>LinkedIn</td><td>A scheduler with an API (Typefully, Buffer, Postiz, Publer)</td><td>LinkedIn's own API needs partner approval; schedulers give you a preview step for free.</td></tr>
+    <tr><td>Fallback</td><td><code>browser_*</code> tools</td><td>Fragile; the skill screenshots before every click.</td></tr>
+  </table></div>
+  <p>Publishing is <span class="lv lv2">L2</span>: your "approve post &lt;slug&gt;" <em>and</em> <code>jarvis approve social-post</code>. Every publish is read back live and written to <code>jarvis\content\ledger.jsonl</code>.</p>
+
+  <h3>4g · Job hunter — roles, hirers, applications</h3>
+  <p><code>jarvis-job-hunter</code>: builds your profile once (résumé PDF + your LinkedIn page opened in your own browser session), finds roles from many sources (LinkedIn Jobs, Wellfound, Naukri, Instahyre, Cutshort, YC, company career pages, funding news), scores fit, finds the people who can hire you, <strong>verifies</strong> application addresses (never guesses), writes a tailored ≤180-word application per company with your résumé attached, and tracks every touch in <code>jarvis\career\applications.csv</code>.</p>
+  <div class="cmd" data-label="Send to Jarvis (after Gmail is connected)"><pre>Load jarvis-job-hunter. My résumé is at C:\Users\Growstack\Documents\resume.pdf. Target: fresher/junior AI automation,
+AI agents and backend AI engineer roles, 70–80k per month INR, Hyderabad/Bangalore or remote. Find 10 companies hiring now,
+verify their application emails, draft the applications, and show me the batch.</pre></div>
+  <div class="note"><div class="eyebrow">LinkedIn, honestly</div><p>"Find 5 prospects who could hire me and message them" works like this: Jarvis picks the 5 people, writes each connection note (≤300 chars) and follow-up message, shows you the batch, and then — only after your yes — performs them in <em>your</em> logged-in browser, one at a time, ≥90 s apart, ≤10 a day, screenshotting before each click. Background/bulk LinkedIn automation gets accounts restricted, so it is deliberately not built. Email applications go out under a Level-2 <code>email-send</code> ticket (or a standing approval once you trust the drafts).</p></div>
+
+  <h3>4h · Outreach and the 09:00 daily post</h3>
+  <p><code>jarvis-outreach</code> (ICP → verified leads with a real trigger → one-three-one emails → follow-ups at +3/+7 days → reply tracking; 20 sends/day cap) and <code>jarvis-daily-content</code> (today's best angle → copy + image + UGC-style video script → 8-point virality checklist → publish under a standing approval, else one-tap approval on WhatsApp). To let the 09:00 post go out unattended: <code>jarvis approve social-post standing</code> (or tick "standing" in the console). Image generation still needs <code>FAL_KEY</code> or the Nous Tool Gateway (4d).</p>
+
+  <h3>4f · Research &amp; browser</h3>
+  <p>With Playwright installed, <code>browser_*</code> tools appear automatically. For deep research ask for parallel subagents: <em>"Use delegate_task to research X from three angles and merge the findings."</em> Subagents are leaf workers — they cannot message you, schedule jobs, or delegate further.</p>
+</section>
+
+<!-- ───────────────────────── 5 ───────────────────────── -->
+<section id="p5">
+  <div class="sec-head"><span class="num">5</span><h2>Automations</h2><span class="time">Day 3 · 10 minutes</span></div>
+  <p class="intro">Hermes' cron runs jobs as isolated agent sessions, with a 3-minute hard interrupt, no self-approval, and delivery to WhatsApp. Jobs that find nothing say <code>[SILENT]</code> and you never hear from them.</p>
+  <div class="cmd" data-label="PowerShell"><pre>cd $env:USERPROFILE\Desktop\hermes-project
+.\setup\03-cron-jobs.ps1
+hermes cron list
+hermes cron run "Morning brief"        <span class="c"># fire once on the next tick to test delivery</span>
+hermes cron runs                       <span class="c"># durable history of every attempt</span></pre></div>
+  <div class="tbl"><table>
+    <tr><th>Job</th><th>When</th><th>What it does</th><th>Delivers</th></tr>
+    <tr><td>Trend hunter</td><td class="num-col">06:45 Mon–Sat</td><td>Daily sweep with <code>--continuity</code> so it dedupes against yesterday</td><td>local (the brief reads it)</td></tr>
+    <tr><td>Morning brief</td><td class="num-col">07:30 Mon–Sat</td><td>Email triage + calendar + GitHub + top trends, numbered replies to approve</td><td>WhatsApp</td></tr>
+    <tr><td>Daily content 9am</td><td class="num-col">09:00 daily</td><td><code>jarvis-daily-content</code>: angle → copy + image (+ video) → virality checklist → publish (standing approval) or one-tap approval</td><td>WhatsApp</td></tr>
+    <tr><td>Outreach follow-ups</td><td class="num-col">10:00 Mon–Fri</td><td>Reply tracking + due follow-ups within approval rules; silent until an ICP contract exists</td><td>WhatsApp or silent</td></tr>
+    <tr><td>PR shepherd</td><td class="num-col">every 2 h, 09–19</td><td>CI status of Jarvis-opened PRs; diagnoses failures as a PR comment (L1); never merges</td><td>WhatsApp or silent</td></tr>
+    <tr><td>Evening wrap</td><td class="num-col">18:30 Mon–Fri</td><td>What got done, what is waiting on you</td><td>WhatsApp or silent</td></tr>
+    <tr><td>Weekly competitor digest</td><td class="num-col">Mon 08:15</td><td><code>competitor-news-monitor</code>: material, cited news only</td><td>WhatsApp or silent</td></tr>
+    <tr><td>Weekly content plan</td><td class="num-col">Sun 20:00</td><td>Three post proposals from the week's trends; asks which to produce</td><td>WhatsApp</td></tr>
+  </table></div>
+  <h3>Optional: GitHub events instead of polling</h3>
+  <p>You have ngrok. Hermes' webhook platform can receive GitHub <code>pull_request</code> events and post a review comment automatically (guide: <em>Automated GitHub PR Comments with Webhooks</em> in the Hermes docs). Because webhook payloads are attacker-controlled text, run that route only after Phase 6's Docker sandbox is on.</p>
+</section>
+
+<!-- ───────────────────────── 6 ───────────────────────── -->
+<section id="p6">
+  <div class="sec-head"><span class="num">6</span><h2>Scale &amp; hardening</h2><span class="time">Weeks 2–4 · pick what you need</span></div>
+
+  <div class="twocol">
+    <div>
+      <h3>Second channel: Telegram</h3>
+      <p>WhatsApp via Baileys is an unofficial bridge: it re-pairs after protocol changes and has no buttons. Telegram gives native <strong>Approve / Deny</strong> buttons for approval prompts and is the most battle-tested Hermes platform. Keep WhatsApp, add Telegram for approvals and cron.</p>
+      <div class="cmd" data-label="PowerShell"><pre>cd $env:LOCALAPPDATA\hermes\hermes-agent
+uv pip install -e ".[messaging]"
+hermes gateway setup            <span class="c"># Telegram → paste BotFather token → allowlist your user id</span></pre></div>
+      <p>If WhatsApp must stay primary, the <strong>WhatsApp Business Cloud API</strong> adapter (<code>hermes whatsapp-cloud</code>) is the supported, official route.</p>
+    </div>
+    <div>
+      <h3>Sandbox untrusted work: Docker terminal backend</h3>
+      <p>Docker Desktop is already running. Switching the terminal backend puts Claude Code runs, webhook-triggered jobs and anything that touches strangers' input inside a container with its own filesystem.</p>
+      <div class="cmd" data-label="config.yaml"><pre>terminal:
+  backend: docker
+  docker_mount_cwd_to_workspace: true
+  container_persistent: true</pre></div>
+      <p>Keep <code>local</code> for your own repos if you prefer speed; you can run two profiles (next column) with different backends.</p>
+    </div>
+    <div>
+      <h3>Kanban: a fleet of specialists</h3>
+      <p>When one Jarvis is not enough, create worker profiles and let the dispatcher assign tasks. Each profile has its own memory, persona and tools; the board is the hard isolation boundary.</p>
+      <div class="cmd" data-label="PowerShell"><pre>hermes profile create coder
+hermes profile describe coder "Implements coding tasks via Claude Code; opens PRs; never merges"
+hermes profile create researcher
+hermes profile describe researcher "Deep research, citations, competitor monitoring"
+hermes kanban create "Add rate limiting to the voice-calling API" --assignee coder --priority 2
+hermes dashboard                <span class="c"># http://127.0.0.1:9119 → Kanban</span></pre></div>
+      <p>Turn on <em>Auto</em> orchestration in the dashboard and the decomposer splits big tasks into a graph routed to the best-fit profile.</p>
+    </div>
+    <div>
+      <h3>Voice, wake word, desktop</h3>
+      <p>"Hey Hermes" runs fully on-device (openWakeWord). Voice mode needs the audio extras; TTS comes from the Nous Tool Gateway, ElevenLabs, or a local model.</p>
+      <div class="cmd" data-label="PowerShell"><pre>cd $env:LOCALAPPDATA\hermes\hermes-agent
+uv pip install -e ".[voice]"
+hermes desktop                  <span class="c"># Hermes Desktop app (already built on this machine)</span>
+<span class="c"># in a session:</span> /wake on     <span class="c"># or wake_word.enabled: true in config.yaml</span></pre></div>
+      <p>To answer to "Hey Jarvis" instead, point <code>wake_word.openwakeword.model</code> at the built-in <code>hey_jarvis</code> model.</p>
+    </div>
+  </div>
+
+  <h3>Emergency stop, backups, upkeep</h3>
+  <div class="cmd" data-label="PowerShell"><pre>hermes pause        <span class="c"># or: jarvis pause  — halts cron, kanban dispatch and new gateway turns instantly</span>
+hermes resume
+hermes backup       <span class="c"># zip of the whole Hermes home (weekly; before every update)</span>
+hermes update       <span class="c"># weekly; read the changelog — WhatsApp/LID handling changes often</span>
+hermes security     <span class="c"># supply-chain audit of venv, plugins, MCP servers</span>
+hermes insights     <span class="c"># token and cost analytics per session</span></pre></div>
+</section>
+
+<!-- ───────────────────────── 7 ───────────────────────── -->
+<section id="p7">
+  <div class="sec-head"><span class="num">7</span><h2>Operating rhythm</h2><span class="time">What "success" looks like and the 30-day path to it</span></div>
+
+  <div class="twocol">
+    <div>
+      <h3>Your day with Jarvis</h3>
+      <ul>
+        <li><strong>07:30</strong> Brief arrives. You answer in one message: "send 1, 3; edit 2: shorter; start coding on 5; merge #182."</li>
+        <li><strong>At your desk</strong> <code>jarvis approve merge</code> for the merge you said yes to; glance at <code>jarvis log</code>.</li>
+        <li><strong>Through the day</strong> forward emails or voice-note tasks to WhatsApp; PR shepherd pings only on failures.</li>
+        <li><strong>18:30</strong> Wrap: what shipped, what waits on you, drafts ready to approve.</li>
+        <li><strong>Sunday</strong> Content plan; approve two, reject one, ask for a new angle.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Success metrics (check monthly via <code>hermes insights</code> + the ledger)</h3>
+      <ul>
+        <li>≥ 80% of routine replies go out from Jarvis drafts with ≤ 1 edit.</li>
+        <li>Coding requests from email become PRs with passing CI the same day, untouched by you until review.</li>
+        <li>0 Level-3 incidents; every Level-2 action has a ticket in <code>policy.log</code>.</li>
+        <li>3 posts/week published from trend-hunter angles; engagement tracked in the ledger.</li>
+        <li>Daily token spend stable and known; no surprise provider bills (fallback set, guardrails on).</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>30-day plan</h3>
+  <div class="tbl"><table>
+    <tr><th>Week</th><th>Build</th><th>Done when</th></tr>
+    <tr><td class="num-col">1</td><td>Phases 1–3 + coding worker (4a). Telegram if WhatsApp flakes.</td><td>Jarvis opens a real PR from a WhatsApp message; L2/L3 tests behave.</td></tr>
+    <tr><td class="num-col">2</td><td>Email &amp; calendar (4b), morning brief + evening wrap (5).</td><td>You run your inbox from the brief for five days straight.</td></tr>
+    <tr><td class="num-col">3</td><td>Trend hunter, creative director, brand kit (4c–4d); content plan job.</td><td>Three approved posts produced end-to-end; you post them by hand.</td></tr>
+    <tr><td class="num-col">4</td><td>Publishing path (4e), Docker sandbox, kanban profiles, voice/desktop (6).</td><td>One post published by Jarvis with a ticket; one kanban task completed by the <code>coder</code> profile.</td></tr>
+  </table></div>
+</section>
+
+<!-- ───────────────────────── 8 ───────────────────────── -->
+<section id="p8">
+  <div class="sec-head"><span class="num">8</span><h2>Troubleshooting</h2><span class="time">The failures you are most likely to meet, with the fix</span></div>
+  <div class="tbl"><table>
+    <tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr>
+    <tr><td>WhatsApp messages get no reply; <code>bridge.log</code> shows <code>allowlist_mismatch</code> with an <code>@lid</code> sender</td><td>Allowlist number lacks the country code, or the LID→phone mapping file is missing after a re-pair</td><td><code>WHATSAPP_ALLOWED_USERS=919866614377</code> (no +). Restart; confirm <code>bridge.log</code> prints <code>Allowed users: 919866614377</code>. After a re-pair, message the bot once so the mapping file regenerates.</td></tr>
+    <tr><td><code>hermes gateway restart</code> says <em>Error stopping bridge … could not be terminated</em>; old settings persist</td><td>An orphaned <code>bridge.js</code> survived and the new gateway attached to it</td><td>Find the PID listening on the bridge port (<code>netstat -ano | findstr :3777</code>), <code>taskkill /PID &lt;pid&gt; /F</code>, restart the gateway.</td></tr>
+    <tr><td>Your Next.js dev server dies when Hermes starts</td><td>Bridge port equals the dev server port; the adapter kills listeners on its port</td><td>Keep <code>gateway.platforms.whatsapp.extra.bridge_port: 3777</code> (already set). Never run anything else on 3777.</td></tr>
+    <tr><td><code>hermes</code> not recognised</td><td>Shell opened before install</td><td>New terminal, or <code>$env:Path += ";$env:LOCALAPPDATA\hermes\hermes-agent\bin"</code>.</td></tr>
+    <tr><td>Hook prompts for consent or shows "not allowlisted"</td><td>First-use consent for shell hooks</td><td><code>hermes gateway restart --accept-hooks</code> once, or <code>hooks_auto_accept: true</code> in config.yaml.</td></tr>
+    <tr><td>Guard blocks something legitimate</td><td>Regex too broad for your case</td><td>Check <code>jarvis log</code>; edit <code>agent-hooks\policy-guard.py</code>; <code>hermes hooks test pre_tool_call</code>. Reinstall with <code>02-install-into-hermes.ps1</code> to keep the repo copy in sync.</td></tr>
+    <tr><td>Claude Code run returns <code>error_max_turns</code></td><td>Task too big for one pass</td><td>Jarvis resumes once with <code>--resume &lt;session_id&gt;</code>; if it still stops, split the work order.</td></tr>
+    <tr><td>Browser tools missing from the tool list</td><td>Playwright Chromium not installed</td><td><code>cd $env:LOCALAPPDATA\hermes\hermes-agent; npx playwright install chromium</code>.</td></tr>
+    <tr><td>Approval prompt times out on WhatsApp</td><td>300 s default</td><td>Reply <code>/approve</code> or <code>/deny</code> faster, raise <code>approvals.timeout</code>, or move approvals to Telegram buttons.</td></tr>
+    <tr><td>Cron job ran but you got nothing; or Hermes says "No home channel is set for Whatsapp"</td><td>It answered <code>[SILENT]</code>, or no home channel yet</td><td><code>hermes cron runs</code> shows the output. Send <code>/sethome</code> in your WhatsApp chat with Hermes — it stores that chat's LID id in <code>config.yaml</code>. Don't hand-type a phone number; delivery uses the LID form.</td></tr>
+    <tr><td>Anything else</td><td>—</td><td><code>hermes doctor</code>, <code>%LOCALAPPDATA%\hermes\logs\gateway.log</code>, <code>hermes debug</code> to bundle logs for support.</td></tr>
+  </table></div>
+</section>
+
+</main>
+</div>
+<footer>Grounded in the Hermes Agent v0.20.4 source and docs on this machine (<code>hermes-agent\website\docs</code>), <code>hermes doctor</code>, and the live gateway state on 20 Aug 2026. Files referenced live in <code>Desktop\hermes-project</code>.</footer>

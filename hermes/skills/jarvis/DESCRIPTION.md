@@ -1,0 +1,1 @@
+Jarvis — orchestration skills for Growstack's personal operating system: coding dispatch to Claude Code, morning brief, trend hunting, creative direction, and social publishing. Each skill composes bundled Hermes skills and enforces the permission levels in SOUL.md.

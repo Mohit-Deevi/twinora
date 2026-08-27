@@ -1,0 +1,335 @@
+# Jarvis — Kubernetes + KEDA autoscaling
+#
+# THE ONE THING TO UNDERSTAND BEFORE READING THE YAML
+# ---------------------------------------------------
+# Scaling pods does not create model capacity. The binding constraint is the provider's
+# account-wide token throughput (ITPM), which every pod shares. Scaling workers on queue depth
+# alone builds a highly efficient way to hit 429s in parallel.
+#
+# So this manifest scales on TWO signals:
+#   1. Redis queue depth      — is there work waiting?
+#   2. Token budget headroom  — are we allowed to spend more this minute?
+#
+# The second trigger is a custom metric published by the admission controller. Without it,
+# autoscaling makes throughput worse, not better, because retries pile on top of new work.
+#
+# TIERS
+#   api        stateless   → HPA on RPS. Trivial to scale.
+#   worker     stateless   → KEDA on queue depth + token headroom. The real workhorse.
+#   hermes     STATEFUL    → StatefulSet, scaled manually. See the note at that section.
+#
+# Apply order:  namespace → secrets → redis → hermes → api → worker → keda → policy
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jarvis
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+
+---
+# ---------------------------------------------------------------------------------------------
+# turgo-jarvis API — stateless, fast, scales on request rate
+# ---------------------------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jarvis-api
+  namespace: jarvis
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: jarvis-api}
+  template:
+    metadata:
+      labels: {app: jarvis-api}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: api
+          image: registry.gitlab.com/growstack/turgo-jarvis:${TAG}
+          command: ["node", "dist/index.js"]
+          ports: [{containerPort: 8080, name: http}]
+          envFrom:
+            - secretRef: {name: jarvis-secrets}
+            - configMapRef: {name: jarvis-config}
+          resources:
+            requests: {cpu: 200m, memory: 256Mi}
+            limits:   {cpu: "1",  memory: 512Mi}
+          readinessProbe:
+            httpGet: {path: /health/ready, port: http}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: jarvis-api
+  namespace: jarvis
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: jarvis-api}
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource: {name: cpu, target: {type: Utilization, averageUtilization: 70}}
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300   # do not flap
+    scaleUp:
+      stabilizationWindowSeconds: 30
+
+---
+# ---------------------------------------------------------------------------------------------
+# turgo-jarvis WORKER — the tier KEDA actually earns its place on
+# ---------------------------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jarvis-worker
+  namespace: jarvis
+spec:
+  replicas: 0                     # KEDA owns this number. Do not set it by hand.
+  selector:
+    matchLabels: {app: jarvis-worker}
+  template:
+    metadata:
+      labels: {app: jarvis-worker}
+    spec:
+      # An agent run takes minutes. A pod killed mid-run either loses the work or, worse,
+      # leaves side effects (an email sent, a campaign created) with no record. The worker
+      # traps SIGTERM, stops claiming new jobs, and finishes what it holds.
+      terminationGracePeriodSeconds: 600
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: worker
+          image: registry.gitlab.com/growstack/turgo-jarvis:${TAG}
+          command: ["node", "dist/worker/main.js"]
+          envFrom:
+            - secretRef: {name: jarvis-secrets}
+            - configMapRef: {name: jarvis-config}
+          env:
+            # One in-flight agent run per pod. Concurrency comes from pod count, not threads —
+            # it makes the KEDA maths honest and keeps a crash blast-radius to one task.
+            - name: WORKER_CONCURRENCY
+              value: "1"
+            - name: WORKER_POOL
+              value: "interactive"
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits:   {cpu: 500m, memory: 512Mi}
+          lifecycle:
+            preStop:
+              exec: {command: ["node", "dist/worker/drain.js"]}
+
+---
+# Heavy pool: lead sourcing, code-to-PR, research. Separate deployment so a burst of
+# multi-minute work cannot starve interactive chat. Different image tag is NOT used —
+# same code, different queue and different scaling envelope.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jarvis-worker-heavy
+  namespace: jarvis
+spec:
+  replicas: 0
+  selector:
+    matchLabels: {app: jarvis-worker-heavy}
+  template:
+    metadata:
+      labels: {app: jarvis-worker-heavy}
+    spec:
+      terminationGracePeriodSeconds: 1800     # these runs are long
+      containers:
+        - name: worker
+          image: registry.gitlab.com/growstack/turgo-jarvis:${TAG}
+          command: ["node", "dist/worker/main.js"]
+          envFrom:
+            - secretRef: {name: jarvis-secrets}
+            - configMapRef: {name: jarvis-config}
+          env:
+            - {name: WORKER_CONCURRENCY, value: "1"}
+            - {name: WORKER_POOL,        value: "heavy"}
+          resources:
+            requests: {cpu: 200m, memory: 512Mi}
+            limits:   {cpu: "1",  memory: "1Gi"}
+
+---
+# ---------------------------------------------------------------------------------------------
+# KEDA — scale on queue depth AND token headroom
+# ---------------------------------------------------------------------------------------------
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: jarvis-worker
+  namespace: jarvis
+spec:
+  scaleTargetRef: {name: jarvis-worker}
+  minReplicaCount: 2          # keep warm; cold start costs a user-visible second
+  maxReplicaCount: 25         # see the ceiling note below — this is NOT arbitrary
+  pollingInterval: 10
+  cooldownPeriod: 120         # do not scale down while a run may still be finishing
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies: [{type: Percent, value: 25, periodSeconds: 60}]
+        scaleUp:
+          stabilizationWindowSeconds: 15
+          policies: [{type: Percent, value: 100, periodSeconds: 30}]
+  triggers:
+    # 1. Is there work waiting?
+    - type: redis
+      metadata:
+        addressFromEnv: REDIS_ADDRESS
+        listName: "bull:jarvis:interactive:wait"
+        listLength: "3"          # target 3 queued jobs per worker
+        enableTLS: "true"
+      authenticationRef: {name: jarvis-redis-auth}
+
+    # 2. Are we ALLOWED to spend more? Published by the admission controller as
+    #    tokens_remaining_this_minute / tokens_per_minute_budget, 0.0-1.0.
+    #    When headroom falls, KEDA scales DOWN even with a deep queue — which is correct:
+    #    more pods against an exhausted budget produce 429s and retry storms, not throughput.
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.monitoring:9090
+        metricName: jarvis_token_budget_headroom
+        query: |
+          min(jarvis_token_budget_headroom_ratio{namespace="jarvis"})
+        threshold: "0.30"
+        activationThreshold: "0.10"
+
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: jarvis-worker-heavy
+  namespace: jarvis
+spec:
+  scaleTargetRef: {name: jarvis-worker-heavy}
+  minReplicaCount: 0            # scale to zero — heavy work is bursty and expensive
+  maxReplicaCount: 5            # deliberately small: these consume the token budget fastest
+  pollingInterval: 30
+  cooldownPeriod: 600
+  triggers:
+    - type: redis
+      metadata:
+        addressFromEnv: REDIS_ADDRESS
+        listName: "bull:jarvis:heavy:wait"
+        listLength: "1"
+        enableTLS: "true"
+      authenticationRef: {name: jarvis-redis-auth}
+
+---
+# ---------------------------------------------------------------------------------------------
+# Hermes agent — STATEFUL. Read this before changing `replicas`.
+# ---------------------------------------------------------------------------------------------
+# Hermes keeps memory, sessions and schedules in a SQLite database on its volume. SQLite is
+# single-writer: two pods against one volume corrupts it, and two pods with separate volumes
+# gives each user a different memory depending on which pod answered.
+#
+# Therefore:
+#   - replicas: 1 until shared state is validated (Risk R7 in the capacity plan)
+#   - scaling is MANUAL and deliberate, never automatic
+#   - when we do scale, conversation-affinity routing is mandatory so a user always lands
+#     on the pod holding their history
+#
+# This is the single blocker between Tier A (300 users) and Tier B (1,000).
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: hermes
+  namespace: jarvis
+spec:
+  serviceName: hermes
+  replicas: 1
+  selector:
+    matchLabels: {app: hermes}
+  template:
+    metadata:
+      labels: {app: hermes}
+    spec:
+      terminationGracePeriodSeconds: 600
+      containers:
+        - name: hermes
+          image: registry.gitlab.com/growstack/jarvis-hermes:${HERMES_TAG}
+          args: ["gateway", "run"]
+          ports: [{containerPort: 8642, name: api}]
+          envFrom:
+            - secretRef: {name: hermes-secrets}
+          env:
+            - {name: API_SERVER_ENABLED, value: "true"}
+            - {name: API_SERVER_HOST,    value: "0.0.0.0"}
+            # Raise from the default 10. Bounded by memory, not CPU — agent runs are I/O bound.
+            - {name: HERMES_MAX_CONCURRENT_RUNS, value: "25"}
+          resources:
+            requests: {cpu: "1",  memory: "4Gi"}
+            limits:   {cpu: "4",  memory: "8Gi"}
+          readinessProbe:
+            httpGet: {path: /health, port: api}
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: {path: /health, port: api}
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            failureThreshold: 4
+          volumeMounts:
+            - {name: data, mountPath: /opt/data}
+  volumeClaimTemplates:
+    - metadata: {name: data}
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources: {requests: {storage: 100Gi}}
+
+---
+# ---------------------------------------------------------------------------------------------
+# Availability + safety
+# ---------------------------------------------------------------------------------------------
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: {name: jarvis-api, namespace: jarvis}
+spec:
+  minAvailable: 1
+  selector: {matchLabels: {app: jarvis-api}}
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: {name: hermes, namespace: jarvis}
+spec:
+  maxUnavailable: 0        # never voluntarily evict the stateful agent
+  selector: {matchLabels: {app: hermes}}
+
+---
+# Egress lockdown: the agent may reach model providers and our own services, nothing else.
+# This is the control that limits blast radius if a prompt injection ever gets through.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: hermes-egress, namespace: jarvis}
+spec:
+  podSelector: {matchLabels: {app: hermes}}
+  policyTypes: [Egress]
+  egress:
+    - to: [{namespaceSelector: {matchLabels: {name: kube-system}}}]
+      ports: [{protocol: UDP, port: 53}]
+    - to: [{ipBlock: {cidr: 0.0.0.0/0, except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16]}}]
+      ports: [{protocol: TCP, port: 443}]

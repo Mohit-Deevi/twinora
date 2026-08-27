@@ -1,0 +1,110 @@
+# Jarvis / Hermes — company server deployment
+#
+#   caddy (443, TLS)  ->  hermes gateway (API server, 8642)  ->  Anthropic API
+#                                     |
+#                                     +-- your skills, plugins, memory (persistent volume)
+#
+# The gateway container holds the whole Hermes runtime: agent loop, 90+ skills, tools, memory,
+# cron, and the OpenAI-compatible API server. Your app talks HTTP to Caddy; Caddy terminates TLS
+# and proxies to the API server. Nothing but Caddy is published to the network.
+#
+#   cp .env.example .env   # fill it in first — the stack refuses to start without the keys
+#   docker compose up -d --build
+#   curl -H "Authorization: Bearer $API_SERVER_KEY" https://jarvis.yourdomain.com/v1/models
+#
+# SECURITY: the API server exposes Hermes' full toolset, including terminal commands. Anyone with
+# API_SERVER_KEY can run code inside the container. Treat that key like a root password: never in a
+# browser bundle, never in a mobile app, never in git. Call it from your backend only.
+
+name: jarvis
+
+services:
+  # ---------------------------------------------------------------- Hermes
+  gateway:
+    build:
+      # Point at a checkout of https://github.com/NousResearch/hermes-agent
+      context: ${HERMES_SRC:-./hermes-agent}
+      dockerfile: Dockerfile
+    image: jarvis-hermes:latest
+    container_name: jarvis-gateway
+    restart: unless-stopped
+    command: ["gateway", "run"]
+    environment:
+      # ---- identity of the host user that owns the data volume (keeps file perms sane)
+      HERMES_UID: ${HERMES_UID:-10001}
+      HERMES_GID: ${HERMES_GID:-10001}
+      # ---- the brain. A real API key is the right choice on a server: no interactive OAuth
+      #      refresh, no personal account, per-token billing you can attribute to the company.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY in .env}
+      # ---- API server: bound to 0.0.0.0 INSIDE the container, reachable only via Caddy
+      API_SERVER_ENABLED: "true"
+      API_SERVER_HOST: "0.0.0.0"
+      API_SERVER_PORT: "8642"
+      API_SERVER_KEY: ${API_SERVER_KEY:?set API_SERVER_KEY in .env}
+      API_SERVER_MODEL_NAME: ${API_SERVER_MODEL_NAME:-jarvis}
+      API_SERVER_CORS_ORIGINS: ${API_SERVER_CORS_ORIGINS:-}
+      # ---- optional integrations; blank is fine
+      GROWSTACK_ROUTER_KEY: ${GROWSTACK_ROUTER_KEY:-}
+      INSTANTLY_API_KEY: ${INSTANTLY_API_KEY:-}
+      APOLLO_API_KEY: ${APOLLO_API_KEY:-}
+      FAL_KEY: ${FAL_KEY:-}
+      HF_TOKEN: ${HF_TOKEN:-}
+      # ---- messaging off by default on a server; turn on deliberately
+      WHATSAPP_ENABLED: ${WHATSAPP_ENABLED:-false}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_ALLOWED_USERS: ${TELEGRAM_ALLOWED_USERS:-}
+    volumes:
+      # Everything stateful lives here: config.yaml, .env, memory, sessions, skills, plugins, cron.
+      - hermes-data:/opt/data
+      # Your Jarvis assets, mounted read-only and copied in by the bootstrap container below.
+      - ../hermes:/opt/jarvis-src:ro
+    # Not published to the host — only Caddy can reach it, over the internal network.
+    expose:
+      - "8642"
+    networks: [edge]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8642/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          cpus: "${HERMES_CPUS:-4}"
+          memory: ${HERMES_MEMORY:-6g}
+    logging:
+      driver: json-file
+      options: {max-size: "20m", max-file: "5"}
+
+  # ---------------------------------------------------------------- TLS + auth edge
+  caddy:
+    image: caddy:2-alpine
+    container_name: jarvis-caddy
+    restart: unless-stopped
+    depends_on:
+      gateway:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      JARVIS_DOMAIN: ${JARVIS_DOMAIN:?set JARVIS_DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [edge]
+    logging:
+      driver: json-file
+      options: {max-size: "20m", max-file: "3"}
+
+volumes:
+  hermes-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  edge:
+    driver: bridge
